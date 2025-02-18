@@ -1,3 +1,5 @@
+// Footer.js: Defines the footer component of the application, providing copyright and general information about the BookNook platform.
+
 export default function Footer() {
     return (
       <footer className="p-8 bg-pink-100 text-gray-800 text-center">

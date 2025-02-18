@@ -1,4 +1,6 @@
-import Image from 'next/image'; // Import the Next.js Image component
+// page.js: This file defines the Home page of the BookNook application, organizing the layout into hero, features, and how-it-works sections.
+
+import Image from 'next/image'; // Import the Next.js Image component to handle optimized image loading.
 
 export default function Home() {
   return (
@@ -18,11 +20,11 @@ export default function Home() {
         </div>
         {/* Optimized Image Component */}
         <Image
-          src="/Unknown.jpg" // Use the path relative to the `public` folder
-          alt="Book Club Illustration"
-          width={400} // Set width
-          height={400} // Set height
-          className="w-full md:w-1/3 mt-6 md:mt-0"
+          src="/cat.jpg" // Specify the path relative to the `public` folder for the image.
+          alt="Book Club Illustration" // Provide an alternative text for the image.
+          width={400} // Set the width of the image.
+          height={400} // Set the height of the image.
+          className="w-full md:w-1/3 mt-6 md:mt-0" // Assign responsive width and margin classes.
         />
       </section>
 
@@ -45,24 +47,24 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How it works */}
+      {/* How It Works Section */}
       <section className="p-8">
-  <h2 className="text-3xl font-bold text-center mb-8">How It Works</h2>
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-    <div className="p-4 bg-white shadow-lg rounded">
-      <h3 className="text-xl font-bold mb-2">1. Create or Join a Club</h3>
-      <p>Start your own book club or join an existing one. Invite friends and book lovers to collaborate.</p>
-    </div>
-    <div className="p-4 bg-white shadow-lg rounded">
-      <h3 className="text-xl font-bold mb-2">2. Organize Meetings</h3>
-      <p>Schedule meetings, set agendas, and sync calendars effortlessly with our intuitive tools.</p>
-    </div>
-    <div className="p-4 bg-white shadow-lg rounded">
-      <h3 className="text-xl font-bold mb-2">3. Dive Into Discussions</h3>
-      <p>Share reviews, engage in meaningful conversations, and explore books together.</p>
-    </div>
-  </div>
-</section>
+        <h2 className="text-3xl font-bold text-center mb-8">How It Works</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+          <div className="p-4 bg-white shadow-lg rounded">
+            <h3 className="text-xl font-bold mb-2">1. Create or Join a Club</h3>
+            <p>Start your own book club or join an existing one. Invite friends and book lovers to collaborate.</p>
+          </div>
+          <div className="p-4 bg-white shadow-lg rounded">
+            <h3 className="text-xl font-bold mb-2">2. Organize Meetings</h3>
+            <p>Schedule meetings, set agendas, and sync calendars effortlessly with our intuitive tools.</p>
+          </div>
+          <div className="p-4 bg-white shadow-lg rounded">
+            <h3 className="text-xl font-bold mb-2">3. Dive Into Discussions</h3>
+            <p>Share reviews, engage in meaningful conversations, and explore books together.</p>
+          </div>
+        </div>
+      </section>
 
     </div>
   );
