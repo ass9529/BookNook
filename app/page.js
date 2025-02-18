@@ -1,101 +1,69 @@
-import Image from "next/image";
+import Image from 'next/image'; // Import the Next.js Image component
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div>
+      {/* Hero Section */}
+      <section className="flex flex-col md:flex-row items-center justify-between p-8 bg-pink-100">
+        <div className="md:w-1/2">
+          <h1 className="text-4xl font-bold mb-4 font-serif">Your Ultimate Book Club Companion</h1>
+          <p className="text-lg mb-6">
+            Manage book clubs effortlessly, join discussions, and keep track of your reading journey
+            with BookNook.
+          </p>
+          <button className="relative group px-6 py-2 rounded bg-black text-white font-medium overflow-hidden hover:bg-gray-800">
+            <span className="absolute inset-0 bg-gray-800 transition-transform translate-y-full group-hover:translate-y-0"></span>
+            <span className="relative group-hover:text-white">Get Started</span>
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        {/* Optimized Image Component */}
+        <Image
+          src="/Unknown.jpg" // Use the path relative to the `public` folder
+          alt="Book Club Illustration"
+          width={400} // Set width
+          height={400} // Set height
+          className="w-full md:w-1/3 mt-6 md:mt-0"
+        />
+      </section>
+
+      {/* Features Section */}
+      <section className="p-8 bg-white">
+        <h2 className="text-3xl font-bold text-center mb-8">Why Choose BookNook?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+          <div>
+            <h3 className="text-2xl font-bold mb-2">Organized Meetings</h3>
+            <p>Schedule and manage book club meetings with ease. Sync calendars and send reminders to members.</p>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold mb-2">Engaging Discussions</h3>
+            <p>Join thoughtful conversations and rate books to spark new ideas with fellow readers.</p>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold mb-2">Personalized Experience</h3>
+            <p>Track your favorite books, reviews, and ratings, and explore curated recommendations.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="p-8">
+  <h2 className="text-3xl font-bold text-center mb-8">How It Works</h2>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+    <div className="p-4 bg-white shadow-lg rounded">
+      <h3 className="text-xl font-bold mb-2">1. Create or Join a Club</h3>
+      <p>Start your own book club or join an existing one. Invite friends and book lovers to collaborate.</p>
+    </div>
+    <div className="p-4 bg-white shadow-lg rounded">
+      <h3 className="text-xl font-bold mb-2">2. Organize Meetings</h3>
+      <p>Schedule meetings, set agendas, and sync calendars effortlessly with our intuitive tools.</p>
+    </div>
+    <div className="p-4 bg-white shadow-lg rounded">
+      <h3 className="text-xl font-bold mb-2">3. Dive Into Discussions</h3>
+      <p>Share reviews, engage in meaningful conversations, and explore books together.</p>
+    </div>
+  </div>
+</section>
+
     </div>
   );
 }
