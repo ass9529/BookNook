@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import supabase from '../supabaseClient'; // Make sure this import path is correct
 
 export default function Navbar() {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLogin, setIsLogin] = useState(false);
@@ -33,13 +35,13 @@ export default function Navbar() {
     event.preventDefault();
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signIn({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           setErrorMessage(error.message);
         } else {
           console.log('User logged in');
-          setErrorMessage('BookNook is in development');
-          toggleModal(); // Close modal on successful login
+          toggleModal(); // Close the modal
+          router.push('/landing'); // Navigate to landing page
         }
       } else {
         const { error } = await supabase.auth.signUp({
@@ -51,13 +53,13 @@ export default function Navbar() {
           setErrorMessage(error.message);
         } else {
           console.log('User signed up');
-          setErrorMessage('BookNook is in development');
-          toggleModal(); // Close modal on successful signup
+          toggleModal(); // Close the modal
+          router.push('/landing'); // Navigate to landing page
         }
       }
     } catch (error) {
       console.error('Authentication error:', error.message);
-      setErrorMessage('BookNook Coming soon.....');
+      setErrorMessage('Authentication error occurred');
     }
   };
 
