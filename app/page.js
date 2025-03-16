@@ -1,8 +1,91 @@
-// page.js: This file defines the Home page of the BookNook application, organizing the layout into hero, features, and how-it-works sections.
+'use client';
 
-import Image from 'next/image'; // Import the Next.js Image component to handle optimized image loading.
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import { Menu, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import supabase from './supabaseClient'; 
+import Modal from './components/Modal';
 
 export default function Home() {
+  const router = useRouter();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [user, setUser] = useState(null);
+
+  const toggleModal = () => {
+    setIsModalOpen(!isModalOpen);
+    setErrorMessage(''); 
+  };
+
+
+  const showSignUp = () => {
+    setIsLogin(false);
+    setIsModalOpen(!isModalOpen);
+    setErrorMessage('');
+  }
+
+
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+
+  const toggleLoginSignup = () => {
+    setIsLogin(!isLogin);
+    setEmail('');
+    setPassword('');
+    setUsername('');
+    setErrorMessage(''); 
+  };
+
+
+  const handleSignOut = async (event) => {
+
+    event.preventDefault();
+    await supabase.auth.signOut();
+    setUser(null)
+    router.push("/")
+  }
+
+  const handleAuth = async (event) => {
+    event.preventDefault();
+    try {
+      if (isLogin) {
+        const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setErrorMessage(error.message);
+        } else {
+          console.log('User logged in');
+          setUser(data.user);
+          toggleModal(); 
+          router.push('/landing'); 
+        }
+      } else {
+        const { error, data } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { username } }
+        });
+        if (error) {
+          setErrorMessage(error.message);
+        } else {
+          console.log('User signed up');
+          setUser(data.user);
+          toggleModal();
+          router.push('/landing'); 
+        }
+      }
+    } catch (error) {
+      console.error('Authentication error:', error.message);
+      setErrorMessage('Authentication error occurred');
+    }
+  };
+
+
   return (
     <div>
       {/* Hero Section */}
@@ -13,18 +96,18 @@ export default function Home() {
             Manage book clubs effortlessly, join discussions, and keep track of your reading journey
             with BookNook.
           </p>
-          <button className="relative group px-6 py-2 rounded bg-black text-white font-medium overflow-hidden hover:bg-gray-800">
+          <button onClick={showSignUp} className="relative group px-6 py-2 rounded bg-black text-white font-medium overflow-hidden hover:bg-gray-800">
             <span className="absolute inset-0 bg-gray-800 transition-transform translate-y-full group-hover:translate-y-0"></span>
             <span className="relative group-hover:text-white">Get Started</span>
           </button>
         </div>
         {/* Optimized Image Component */}
         <Image
-          src="/cat.jpg" // Specify the path relative to the `public` folder for the image.
-          alt="Book Club Illustration" // Provide an alternative text for the image.
-          width={400} // Set the width of the image.
-          height={400} // Set the height of the image.
-          className="w-full md:w-1/3 mt-6 md:mt-0" // Assign responsive width and margin classes.
+          src="/cat.jpg"
+          alt="Book Club Illustration"
+          width={400}
+          height={400}
+          className="w-full md:w-1/3 mt-6 md:mt-0"
         />
       </section>
 
@@ -65,7 +148,23 @@ export default function Home() {
           </div>
         </div>
       </section>
-
+      {isModalOpen &&
+        <Modal
+          username={username}
+          password={password}
+          email={email}
+          setUsername={setUsername}
+          setPassword={setPassword}
+          setEmail={setEmail}
+          handleAuth={handleAuth}
+          isLogin={isLogin}
+          setIsLogin={setIsLogin}
+          errorMessage={errorMessage}
+          setErrorMessage={setErrorMessage}
+          isModalOpen={isModalOpen}
+          setIsModalOpen={setIsModalOpen}
+        />
+      }
     </div>
   );
 }

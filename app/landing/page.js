@@ -1,10 +1,25 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
 import { Bell, BookOpen } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import supabase from '../supabaseClient'; 
 
 const BookClubsPage = () => {
+  const [IsLoggedIn, setIsLoggedIn] = useState(false)
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data } = await supabase.auth.getUser();
+
+      if(data.user) {
+        setIsLoggedIn(true);
+      }
+    }
+    fetchData();
+  }, []);
   const notifications = [
     { id: 1, title: "New book selection for 'Mystery Lovers'", description: "Vote for next month's book by Friday!" },
     { id: 2, title: "Upcoming meeting: SciFi Enthusiasts", description: "Discussion on 'Project Hail Mary' this Saturday" },
@@ -34,6 +49,7 @@ const BookClubsPage = () => {
   ];
 
   return (
+    IsLoggedIn &&
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b">
@@ -65,7 +81,7 @@ const BookClubsPage = () => {
             <BookOpen className="w-5 h-5" />
             <h2 className="text-xl font-semibold">Your Book Clubs</h2>
           </div>
-          
+
           <Tabs defaultValue={bookClubs[0].id.toString()} className="w-full">
             <TabsList className="w-full flex bg-gray-100 rounded-lg p-1">
               {bookClubs.map((club) => (
