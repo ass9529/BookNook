@@ -6,6 +6,24 @@ import { Menu, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import supabase from './supabaseClient'; 
 import Modal from './components/Modal';
+import { Baloo_2 } from 'next/font/google';
+import { Pacifico } from 'next/font/google';
+
+const headerFont = Baloo_2({
+  weight: ['400'],
+  subsets: ['latin'],
+});
+
+const header2Font = Baloo_2({
+  weight: ['800'],
+  subsets: ['latin'],
+});
+
+const footerFont = Pacifico({
+  weight: '400',
+  subsets: ['latin'],
+});
+
 
 export default function Home() {
   const router = useRouter();
@@ -87,67 +105,56 @@ export default function Home() {
 
 
   return (
-    <div>
-      {/* Hero Section */}
-      <section className="flex flex-col md:flex-row items-center justify-between p-8 bg-pink-100">
+    <div className=" bg-red-200 ">
+      
+      <section className={`flex flex-col md:flex-row items-center justify-between p-6 bg-red-200 ${headerFont.className}`}> 
         <div className="md:w-1/2">
-          <h1 className="text-4xl font-bold mb-4 font-serif">Your Ultimate Book Club Companion</h1>
+          <h1 className={`text-4xl font-bold mb-4 font-serif ${header2Font.className}`}> Your Ultimate Book Club Companion</h1>
           <p className="text-lg mb-6">
             Manage book clubs effortlessly, join discussions, and keep track of your reading journey
             with BookNook.
           </p>
-          <button onClick={showSignUp} className="relative group px-6 py-2 rounded bg-black text-white font-medium overflow-hidden hover:bg-gray-800">
-            <span className="absolute inset-0 bg-gray-800 transition-transform translate-y-full group-hover:translate-y-0"></span>
-            <span className="relative group-hover:text-white">Get Started</span>
+          <button onClick={showSignUp} className={`relative group w-36 px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+            <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+            <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Get Started</span>
           </button>
+
         </div>
-        {/* Optimized Image Component */}
+     
         <Image
           src="/cat.jpg"
           alt="Book Club Illustration"
-          width={400}
-          height={400}
-          className="w-full md:w-1/3 mt-6 md:mt-0"
+          width={200}
+          height={200}
+          className="w-auto md:w-1/5 rounded-lg border-2 border-gray-300 mb-10 mt-5"
         />
       </section>
 
-      {/* Features Section */}
-      <section className="p-8 bg-white">
+     
+      <section className={`p-8 bg-white rounded-full border-4 border-black ${header2Font.className}`}>
         <h2 className="text-3xl font-bold text-center mb-8">Why Choose BookNook?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+
+        <div className="grid grid-cols-2 text-center gap-6 w-fit">
           <div>
-            <h3 className="text-2xl font-bold mb-2">Organized Meetings</h3>
-            <p>Schedule and manage book club meetings with ease. Sync calendars and send reminders to members.</p>
+            <h3 className="text-2xl font-bold mb-1">1. Create or Join a Club</h3>
+            <p className={` ${headerFont.className}`}>Start your own book club or join an existing one. Invite friends and book lovers to collaborate.</p>
           </div>
           <div>
-            <h3 className="text-2xl font-bold mb-2">Engaging Discussions</h3>
-            <p>Join thoughtful conversations and rate books to spark new ideas with fellow readers.</p>
+            <h3 className="text-2xl font-bold mb-1">Organize Meetings</h3>
+            <p className={` ${headerFont.className}`}>Schedule book club meetings with ease. Sync calendars and send reminders to members.</p>
           </div>
           <div>
-            <h3 className="text-2xl font-bold mb-2">Personalized Experience</h3>
-            <p>Track your favorite books, reviews, and ratings, and explore curated recommendations.</p>
+            <h3 className="text-2xl font-bold mb-1">Engaging Discussions</h3>
+            <p className={` ${headerFont.className}`}>Join thoughtful conversations and rate books to spark new ideas with fellow readers.</p>
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold mb-1">Personalized Experience</h3>
+            <p className={` ${headerFont.className}`}>Track your favorite books, reviews, and ratings, and explore curated recommendations.</p>
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="p-8">
-        <h2 className="text-3xl font-bold text-center mb-8">How It Works</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-          <div className="p-4 bg-white shadow-lg rounded">
-            <h3 className="text-xl font-bold mb-2">1. Create or Join a Club</h3>
-            <p>Start your own book club or join an existing one. Invite friends and book lovers to collaborate.</p>
-          </div>
-          <div className="p-4 bg-white shadow-lg rounded">
-            <h3 className="text-xl font-bold mb-2">2. Organize Meetings</h3>
-            <p>Schedule meetings, set agendas, and sync calendars effortlessly with our intuitive tools.</p>
-          </div>
-          <div className="p-4 bg-white shadow-lg rounded">
-            <h3 className="text-xl font-bold mb-2">3. Dive Into Discussions</h3>
-            <p>Share reviews, engage in meaningful conversations, and explore books together.</p>
-          </div>
-        </div>
-      </section>
+      
       {isModalOpen &&
         <Modal
           username={username}

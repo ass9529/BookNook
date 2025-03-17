@@ -1,5 +1,23 @@
 import { useState } from "react"
+import { Baloo_2 } from 'next/font/google';
+import { Pacifico } from 'next/font/google';
 
+const headerFont = Baloo_2({
+    weight: ['400', '800'],
+    subsets: ['latin'],
+  });
+  
+  const header2Font = Baloo_2({
+    weight: ['800'],
+    subsets: ['latin'],
+  });
+  
+  const footerFont = Pacifico({
+    weight: '400',
+    subsets: ['latin'],
+  });
+
+  
 export default function Modal({username, email, password, setUsername, setEmail, setPassword, handleAuth, isLogin, setErrorMessage, errorMessage, isModalOpen, setIsModalOpen, setIsLogin}) {
 
     const toggleModal = () => {
