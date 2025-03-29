@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@layer base {
+  :root {
+    --radius: 0.5rem;}
+}  
+
+@layer utilities {
+  .clip-inverted {
+    clip-path: circle(90% at top right);
+  }
+}
+
