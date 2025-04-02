@@ -7,7 +7,6 @@ import { Card, CardContent } from '../src/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../src/components/ui/tabs';
 import supabase from '../supabaseClient'; 
-import Modal from '../components/Modal';
 import { Baloo_2 } from 'next/font/google';
 import { Pacifico } from 'next/font/google';
 
@@ -43,7 +42,6 @@ const BookClubsPage = () => {
 
 
 
-  
 
   return (
     IsLoggedIn &&
@@ -52,7 +50,7 @@ const BookClubsPage = () => {
      
 
         {/* Sidebar */}
-        <section >
+       <section >
           <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
 
@@ -60,17 +58,17 @@ const BookClubsPage = () => {
                 <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
                 <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
               </button>
-              <button onClick={() => router.push('/bookclubs')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <button onClick={() => router.push('/reviews')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
                 <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Clubs</span>
+                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
               </button>
               <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg  bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
                 <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
                 <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
               </button>
-              <button onClick={() => router.push('/notifications')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <button onClick={() => router.push('/members')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
                 <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Notifications</span>
+                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Members</span>
               </button>
               <button onClick={() => router.push('/calendar')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
                 <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
@@ -86,9 +84,6 @@ const BookClubsPage = () => {
           {/* Navigation Button */}
         </section>
 
-
-    
-
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
        
 
@@ -96,7 +91,7 @@ const BookClubsPage = () => {
         <section className={`max-w-4xl mx-auto ${headerFont.className}`}>
           <div className="flex items-center gap-2 mb-6">
             <BookOpen className="w-5 h-5" />
-            <h2 className="text-3xl font-semibold">Your profile!</h2>
+            <h2 className="text-3xl font-semibold">Your Profile</h2>
           </div>
 
           

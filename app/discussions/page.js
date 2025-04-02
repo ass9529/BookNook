@@ -1,179 +1,199 @@
-'use client'; 
-
+'use client';
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation'; 
-import { Bell, BookOpen } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MessageSquare, ChevronLeft } from 'lucide-react';
 import { Card, CardContent } from '../src/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../src/components/ui/tabs';
-import supabase from '../supabaseClient'; 
+import supabase from '../supabaseClient';
 import { Baloo_2 } from 'next/font/google';
-import { Pacifico } from 'next/font/google';
-
-
-const headerFont = Baloo_2({
-  weight: ['400', '800'],
-  subsets: ['latin'],
-});
 
 const header2Font = Baloo_2({
   weight: ['800'],
   subsets: ['latin'],
 });
 
-const footerFont = Pacifico({
-  weight: '400',
-  subsets: ['latin'],
-});
-
-
-const BookClubsPage = () => {  
+const DiscussionsPage = () => {  
   const router = useRouter();  
-  const [IsLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [discussions, setDiscussions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDiscussion, setSelectedDiscussion] = useState(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        setIsLoggedIn(true);
-      }
-    }
-    fetchData();
-  }, []);
-
-
-
-  
-
-  const bookClubs = [
+  // Sample data - replace with your actual data fetching
+  const sampleDiscussions = [
     {
       id: 1,
-      name: "Mystery Lovers",
-      members: 24,
-      currentBook: "The Thursday Murder Club",
-      topPosts: [
-        { id: 1, title: "Theory about the ending", likes: 15, comments: 8 },
-        { id: 2, title: "Character analysis: Joyce", likes: 12, comments: 5 },
+      title: "Favorite Reading Spots",
+      topic: "General",
+      content: "Where does everyone like to read? I'm looking for new inspiration!",
+      comments: [
+        { id: 1, user: "Alex", text: "I love reading in coffee shops on rainy days", date: "2023-05-15" },
+        { id: 2, user: "Jamie", text: "My backyard hammock is perfect for summer reading", date: "2023-05-18" },
       ]
     },
     {
       id: 2,
-      name: "SciFi Enthusiasts",
-      members: 31,
-      currentBook: "Project Hail Mary",
-      topPosts: [
-        { id: 1, title: "The science behind the Astrophage", likes: 22, comments: 14 },
-        { id: 2, title: "Rocky's communication system explained", likes: 18, comments: 10 },
+      title: "Upcoming Book Events",
+      topic: "Events",
+      content: "There's a great author talk next week at the downtown library",
+      comments: [
+        { id: 1, user: "Taylor", text: "Thanks for sharing! I'll definitely go", date: "2023-06-02" },
       ]
     }
   ];
 
+  useEffect(() => {
+    async function checkAuth() {
+      const { data } = await supabase.auth.getUser();
+      setIsLoggedIn(!!data.user);
+      setLoading(false);
+      
+      // In a real app, you would fetch actual discussion data here:
+      // const { data: discussionData } = await supabase.from('discussions').select('*');
+      // setDiscussions(discussionData || []);
+      
+      setDiscussions(sampleDiscussions); // Using sample data for now
+    }
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <p>Loading discussions...</p>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) return null;
+
   return (
-    IsLoggedIn &&
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-     
-
-        {/* Sidebar */}
-        <section >
-          <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
+    <div className="min-h-screen bg-white flex">
+      {/* Sidebar */}
+      <section>
+        <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
-
-          <button onClick={() => router.push('/landing')} className={`relative group w-full px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
-              </button>
-              <button onClick={() => router.push('/bookclubs')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Clubs</span>
-              </button>
-              <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg bg-transparent text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
-              </button>
-              <button onClick={() => router.push('/notifications')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Notifications</span>
-              </button>
-              <button onClick={() => router.push('/calendar')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
-              </button>
-            <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-gray-500 font-medium overflow-hidden top-28 ${header2Font.className}`}>
+            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
+            </button>
+            <button onClick={() => router.push('/reviews')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
+            </button>
+            <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
+            </button>
+            <button onClick={() => router.push('/members')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Members</span>
+            </button>
+            <button onClick={() => router.push('/calendar')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
+            </button>
+            <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
             </button>  
           </div> 
-          </ul>
+        </ul>
+      </section>
 
-          {/* Navigation Button */}
-        </section>
+      {/* Main Content */}
+      <div className="ml-72 p-8 w-full">
+        <h1 className={`text-3xl font-bold text-black mb-8 ${header2Font.className}`}>
+          {selectedDiscussion ? (
+            <button 
+              onClick={() => setSelectedDiscussion(null)} 
+              className="flex items-center gap-2 text-black hover:text-gray-600"
+            >
+              <ChevronLeft size={24} />
+              {selectedDiscussion.title}
+            </button>
+          ) : (
+            "Community Discussions"
+          )}
+        </h1>
 
+        {selectedDiscussion ? (
+          /* Discussion Detail View */
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm">
+                      {selectedDiscussion.topic}
+                    </span>
+                  </div>
+                  <h2 className="text-2xl font-bold">{selectedDiscussion.title}</h2>
+                  <p className="text-gray-700 whitespace-pre-line">{selectedDiscussion.content}</p>
+                </div>
+              </CardContent>
+            </Card>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-       
-
-        {/* discussion board tabs */}
-        <section className={`max-w-4xl mx-auto ${headerFont.className}`}>
-          <div className="flex items-center gap-2 mb-6">
-            <BookOpen className="w-5 h-5" />
-            <h2 className="text-3xl font-semibold">Discussion Board</h2>
-          </div>
-
-          <Tabs defaultValue={bookClubs[0].id.toString()} className="w-full">
-            <TabsList className="w-full flex bg-gray-100 rounded-lg p-1">
-              {bookClubs.map((club) => (
-                <TabsTrigger
-                  key={club.id}
-                  value={club.id.toString()}
-                  className="flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-md"
-                >
-                  {club.name}
-                  <span className="ml-2 px-2 py-1 bg-gray-200 rounded-full text-xs text-gray-700">
-                    {club.members}
-                  </span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            {bookClubs.map((club) => (
-              <TabsContent key={club.id} value={club.id.toString()} className="mt-4">
-                <Card className="shadow-lg border bg-white rounded-lg">
-                  <CardContent className="pt-6 px-6">
-                    {/* Currently Reading Section */}
-                    <div className="mb-6">
-                      <p className="text-sm text-gray-500">Currently Reading</p>
-                      <p className="text-2xl font-bold">{club.currentBook}</p>
-                    </div>
-
-                    {/* Top Discussions */}
-                    <div>
-                      <p className="text-sm text-gray-500 mb-4">Top Discussions</p>
-                      <div className="space-y-4">
-                        {club.topPosts.map((post) => (
-                          <div
-                            key={post.id}
-                            className="bg-gray-100 p-4 rounded-xl hover:bg-gray-200 transition-all cursor-pointer shadow-sm"
-                          >
-                            <p className="font-semibold">{post.title}</p>
-                            <div className="flex gap-4 mt-2 text-sm text-gray-600">
-                              <span>{post.likes} likes</span>
-                              <span>{post.comments} comments</span>
-                            </div>
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold flex items-center gap-2">
+                <MessageSquare size={20} />
+                Comments ({selectedDiscussion.comments.length})
+              </h3>
+              
+              {selectedDiscussion.comments.length > 0 ? (
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-4">
+                  {selectedDiscussion.comments.map(comment => (
+                    <Card key={comment.id}>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium">{comment.user}</p>
+                            <p className="text-gray-700">{comment.text}</p>
                           </div>
-                        ))}
-                      </div>
+                          <span className="text-sm text-gray-500">{comment.date}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Alert>
+                  <AlertDescription>No comments yet. Be the first to share your thoughts!</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Discussion List View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[80vh] overflow-y-auto pr-4">
+            {discussions.map(discussion => (
+              <Card 
+                key={discussion.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSelectedDiscussion(discussion)}
+              >
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-1 bg-gray-200 text-gray-800 rounded-full text-xs">
+                        {discussion.topic}
+                      </span>
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                    <h3 className="text-lg font-bold">{discussion.title}</h3>
+                    <p className="text-gray-600 line-clamp-2">{discussion.content}</p>
+                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-2">
+                      <MessageSquare size={16} />
+                      <span>{discussion.comments.length} comments</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
-          </Tabs>
-
-        </section>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-export default BookClubsPage;
+export default DiscussionsPage;

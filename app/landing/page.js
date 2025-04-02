@@ -1,106 +1,166 @@
-'use client'; 
-
+'use client';
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 import { Bell, BookOpen } from 'lucide-react';
-import { Card, CardContent } from '../src/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../src/components/ui/tabs';
-import supabase from '../supabaseClient'; 
-import Modal from '../components/Modal';
-import { Baloo_2 } from 'next/font/google';
-import { Pacifico } from 'next/font/google';
+import { Card, CardContent } from '../src/components/ui/card';
+import supabase from '../supabaseClient';
 
-
-const headerFont = Baloo_2({
-  weight: ['400', '800'],
-  subsets: ['latin'],
-});
-
-const header2Font = Baloo_2({
-  weight: ['800'],
-  subsets: ['latin'],
-});
-
-const footerFont = Pacifico({
-  weight: '400',
-  subsets: ['latin'],
-});
-
-
-
-const BookClubsPage = () => {  
-  const router = useRouter();  
-  const [IsLoggedIn, setIsLoggedIn] = useState(false);
+export default function BookClubsPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [clubs, setClubs] = useState([]);
 
   useEffect(() => {
-    async function fetchData() {
-      const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        setIsLoggedIn(true);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // 1. Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        // 2. Fetch data in parallel
+        const [notificationsRes, clubsRes] = await Promise.all([
+          supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .limit(5),
+            
+          supabase
+            .from('club_members')
+            .select('club:clubs(*)')
+            .eq('user_id', user.id)
+        ]);
+
+        if (notificationsRes.error) throw notificationsRes.error;
+        if (clubsRes.error) throw clubsRes.error;
+
+        setNotifications(notificationsRes.data || []);
+        setClubs(clubsRes.data?.map(m => m.club) || []);
+
+      } catch (err) {
+        console.error('Error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+
     fetchData();
-  }, []);
+  }, [router]);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading your book clubs...</p>
+      </div>
+    );
+  }
 
-
-
-  const notifications = [
-    { id: 1, title: "New book selection for 'Mystery Lovers'", description: "Vote for next month's book by Friday!" },
-    { id: 2, title: "Upcoming meeting: SciFi Enthusiasts", description: "Discussion on 'Project Hail Mary' this Saturday" },
-  ];
-
-  {/* AKA home page */}
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error}
+            <button 
+              onClick={() => window.location.reload()} 
+              className="ml-2 underline"
+            >
+              Try Again
+            </button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
-    IsLoggedIn &&
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div >
-          <h1 className={`text-3xl font-bold text-black text-center relative top-5 ${header2Font.className}`}>Welcome! Ready to get started!</h1>
-
-      </div>
-
-        {/* Sidebar */}
-        <section >
-          <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
-          <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
-
-            <button onClick={() => router.push('/landing')} className={`relative group w-full px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
-              </button>
-              <button onClick={() => router.push('/bookclubs')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Clubs</span>
-              </button>
-              <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
-              </button>
-              <button onClick={() => router.push('/notifications')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Notifications</span>
-              </button>
-              <button onClick={() => router.push('/calendar')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
-              </button>
-            <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-gray-500 font-medium overflow-hidden top-28 ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
-            </button>  
-          </div> 
-          </ul>
-
-          {/* Navigation Button */}
-        </section>
-
-
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-8">Your Book Clubs</h1>
       
-    </div>
-  )
-};
+      {/* Notifications */}
+      <section className="mb-12">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell className="w-5 h-5" />
+          <h2 className="text-2xl font-semibold">Notifications</h2>
+        </div>
+        
+        {notifications.length > 0 ? (
+          notifications.map(n => (
+            <Alert key={n.id} className="mb-2">
+              <AlertTitle>{n.title}</AlertTitle>
+              <AlertDescription>{n.description}</AlertDescription>
+            </Alert>
+          ))
+        ) : (
+          <Alert>
+            <AlertTitle>No notifications</AlertTitle>
+            <AlertDescription>You're all caught up!</AlertDescription>
+          </Alert>
+        )}
+      </section>
 
-export default BookClubsPage;
+      {/* Clubs */}
+      <section className="mb-12">
+        <div className="flex items-center gap-2 mb-6">
+          <BookOpen className="w-5 h-5" />
+          <h2 className="text-2xl font-semibold">Your Clubs</h2>
+        </div>
+
+        {clubs.length > 0 ? (
+          <Tabs defaultValue={clubs[0].id}>
+            <TabsList className="grid grid-cols-2 gap-2 mb-6">
+              {clubs.map(club => (
+                <TabsTrigger key={club.id} value={club.id}>
+                  {club.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {clubs.map(club => (
+              <TabsContent key={club.id} value={club.id}>
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-500">Current Book</p>
+                      <p className="text-xl font-bold">{club.current_book || 'Not selected'}</p>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">
+                      {club.member_count || 0} members
+                    </p>
+                    
+                    {/* Book Reviews Button */}
+                    <button
+                      onClick={() => router.push(`/reviews`)}
+                      className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      Navigate to this Club
+                    </button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ))}
+          </Tabs>
+        ) : (
+          <Alert>
+            <AlertTitle>No clubs yet</AlertTitle>
+            <AlertDescription>
+              Join a club to get started!
+            </AlertDescription>
+          </Alert>
+        )}
+      </section>
+    </div>
+  );
+}
