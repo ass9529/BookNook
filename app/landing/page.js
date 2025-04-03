@@ -19,14 +19,12 @@ export default function BookClubsPage() {
       try {
         setLoading(true);
         
-        // 1. Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           router.push('/login');
           return;
         }
 
-        // 2. Fetch data in parallel
         const [notificationsRes, clubsRes] = await Promise.all([
           supabase
             .from('notifications')
@@ -47,7 +45,6 @@ export default function BookClubsPage() {
         setClubs(clubsRes.data?.map(m => m.club) || []);
 
       } catch (err) {
-        console.error('Error:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -88,7 +85,6 @@ export default function BookClubsPage() {
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-8">Welcome! Check out what's new!</h1>
       
-      {/* Notifications */}
       <section className="mb-12">
         <div className="flex items-center gap-2 mb-4">
           <Bell className="w-5 h-5" />
@@ -110,7 +106,6 @@ export default function BookClubsPage() {
         )}
       </section>
 
-      {/* Clubs */}
       <section className="mb-12">
         <div className="flex items-center gap-2 mb-6">
           <BookOpen className="w-5 h-5" />
@@ -139,9 +134,8 @@ export default function BookClubsPage() {
                       {club.member_count || 0} members
                     </p>
                     
-                    {/* Book Reviews Button */}
                     <button
-                      onClick={() => router.push(`/reviews`)}
+                      onClick={() => router.push(`/clubs/${club.id}/reviews`)}
                       className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
                     >
                       <BookOpen className="w-4 h-4" />

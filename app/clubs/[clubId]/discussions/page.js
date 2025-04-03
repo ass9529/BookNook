@@ -2,13 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, ChevronLeft, Plus, X } from 'lucide-react';
-import { Card, CardContent } from '../src/components/ui/card';
-import { Button } from '../src/components/ui/button';
-import { Input } from '../src/components/ui/input';
-import { Textarea } from '../src/components/ui/textarea';
-import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
-import supabase from '../supabaseClient';
+import { Card, CardContent } from '../../../src/components/ui/card';
+import { Button } from '../../../src/components/ui/button';
+import { Input } from '../../../src/components/ui/input';
+import { Textarea } from '../../../src/components/ui/textarea';
+import { Alert, AlertTitle, AlertDescription } from '../../../src/components/ui/alert';
+import supabase from '../../../supabaseClient';
 import { Baloo_2 } from 'next/font/google';
+import { useParams } from 'next/navigation';
 
 const header2Font = Baloo_2({
   weight: ['800'],
@@ -16,6 +17,8 @@ const header2Font = Baloo_2({
 });
 
 const DiscussionsPage = () => {  
+  const params = useParams();
+  const clubId = params.clubId; 
   const router = useRouter();  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -30,7 +33,6 @@ const DiscussionsPage = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Character limits
   const MAX_TITLE_LENGTH = 100;
   const MAX_CONTENT_LENGTH = 1000;
   const MAX_COMMENT_LENGTH = 500;
@@ -39,29 +41,37 @@ const DiscussionsPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+        if (!clubId) return;
+
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           router.push('/login');
           return;
         }
 
+        // Fetch club-specific discussions
         const { data: discussionsData, error: discussionsError } = await supabase
           .from('discussions')
           .select(`
             *,
             author:profiles(username, photo_url)
           `)
+          .eq('club_id', clubId)
           .order('created_at', { ascending: false });
 
         if (discussionsError) throw discussionsError;
 
+        // Get discussion IDs for comment filtering
+        const discussionIds = discussionsData.map(d => d.id);
+
+        // Fetch comments only for these discussions
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
           .select(`
             *,
             commenter:profiles(username, photo_url)
           `)
+          .in('discussion_id', discussionIds)
           .order('created_at', { ascending: false });
 
         if (commentsError) throw commentsError;
@@ -83,15 +93,14 @@ const DiscussionsPage = () => {
 
         setDiscussions(discussionsWithComments);
       } catch (err) {
-        console.error('Error:', err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, [router]);
+    if (clubId) fetchData();
+  }, [router, clubId]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -109,10 +118,7 @@ const DiscussionsPage = () => {
     try {
       setUploading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
-      }
+      if (!user || !clubId) return;
 
       let imageUrl = null;
       if (newDiscussion.image) {
@@ -133,47 +139,35 @@ const DiscussionsPage = () => {
         imageUrl = urlData.publicUrl;
       }
 
+      // Include club_id in new discussion
       const { data: discussionData, error: discussionError } = await supabase
         .from('discussions')
         .insert([{
           title: newDiscussion.title,
           content: newDiscussion.content,
           user_id: user.id,
-          image_url: imageUrl
+          image_url: imageUrl,
+          club_id: clubId
         }])
         .select();
 
       if (discussionError) throw discussionError;
 
+      // Refresh discussions with club filter
       const { data: refreshedDiscussions } = await supabase
         .from('discussions')
         .select(`
           *,
           author:profiles(username, photo_url)
         `)
-        .order('created_at', { ascending: false });
-
-      const { data: commentsData } = await supabase
-        .from('comments')
-        .select(`
-          *,
-          commenter:profiles(username, photo_url)
-        `)
+        .eq('club_id', clubId)
         .order('created_at', { ascending: false });
 
       const updatedDiscussions = refreshedDiscussions.map(discussion => ({
         ...discussion,
         authorName: discussion.author?.username || 'Anonymous',
         authorPhoto: discussion.author?.photo_url || null,
-        comments: commentsData
-          .filter(comment => comment.discussion_id === discussion.id)
-          .map(comment => ({
-            id: comment.id,
-            text: comment.content,
-            date: new Date(comment.created_at).toLocaleDateString(),
-            commenterName: comment.commenter?.username || 'Anonymous',
-            commenterPhoto: comment.commenter?.photo_url || null
-          }))
+        comments: [] // New discussion starts with empty comments
       }));
 
       setDiscussions(updatedDiscussions);
@@ -181,12 +175,30 @@ const DiscussionsPage = () => {
       setNewDiscussion({ title: '', content: '', image: null });
       setImagePreview(null);
     } catch (err) {
-      console.error('Error creating discussion:', err);
       setError(err.message);
     } finally {
       setUploading(false);
     }
   };
+
+  if (!clubId) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            Club not found
+            <button 
+              onClick={() => router.push('/')} 
+              className="ml-2 underline"
+            >
+              Return Home
+            </button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   const handleAddComment = async (discussionId, commentText) => {
     try {
@@ -277,32 +289,33 @@ const DiscussionsPage = () => {
     <div className="min-h-screen bg-white flex">
       <section>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
-          <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
-            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
-            </button>
-            <button onClick={() => router.push('/reviews')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
-            </button>
-            <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg  bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
-            </button>
-            <button onClick={() => router.push('/members')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Members</span>
-            </button>
-            <button onClick={() => router.push('/calendar')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
-            </button>
-            <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
+        <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
+
+        <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+                <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
+              </button>
+              <button onClick={() => router.push(`/clubs/${clubId}/reviews`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
+              </button>
+              <button onClick={() => router.push(`/clubs/${clubId}/discussions`)} className={`relative group w-full px-4 py-2 rounded-lg  bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
+              </button>
+              <button onClick={() => router.push(`/clubs/${clubId}/members`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Members</span>
+              </button>
+              <button onClick={() => router.push(`/clubs/${clubId}/calendar`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
+              </button>
+              <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
-            </button>  
-          </div> 
+            </button> 
+            </div> 
         </ul>
       </section>
 
@@ -469,97 +482,101 @@ const DiscussionsPage = () => {
           </button>
         )}
 
-        {showCreateDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg w-full max-w-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Create New Discussion</h2>
-                <button 
-                  onClick={() => {
-                    setShowCreateDialog(false);
-                    setNewDiscussion({ title: '', content: '', image: null });
-                    setImagePreview(null);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
+{showCreateDialog && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+    <div className="bg-white p-6 rounded-lg w-full max-w-md max-h-[90vh] flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">Create New Discussion</h2>
+        <button 
+          onClick={() => {
+            setShowCreateDialog(false);
+            setNewDiscussion({ title: '', content: '', image: null });
+            setImagePreview(null);
+          }}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          <X size={24} />
+        </button>
+      </div>
+
+          {/* Scrollable Content */}
+          <div className="flex-grow overflow-y-auto pr-2">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Title</label>
+                <Input
+                  value={newDiscussion.title}
+                  onChange={(e) => setNewDiscussion({...newDiscussion, title: e.target.value})}
+                  maxLength={MAX_TITLE_LENGTH}
+                  placeholder="Enter discussion title"
+                />
+                <p className="text-sm text-gray-500 text-right">
+                  {newDiscussion.title.length}/{MAX_TITLE_LENGTH}
+                </p>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Title</label>
-                  <Input
-                    value={newDiscussion.title}
-                    onChange={(e) => setNewDiscussion({...newDiscussion, title: e.target.value})}
-                    maxLength={MAX_TITLE_LENGTH}
-                    placeholder="Enter discussion title"
-                  />
-                  <p className="text-sm text-gray-500 text-right">
-                    {newDiscussion.title.length}/{MAX_TITLE_LENGTH}
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <Textarea
+                  value={newDiscussion.content}
+                  onChange={(e) => setNewDiscussion({...newDiscussion, content: e.target.value})}
+                  maxLength={MAX_CONTENT_LENGTH}
+                  placeholder="Enter discussion content"
+                  rows={5}
+                />
+                <p className="text-sm text-gray-500 text-right">
+                  {newDiscussion.content.length}/{MAX_CONTENT_LENGTH}
+                </p>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <Textarea
-                    value={newDiscussion.content}
-                    onChange={(e) => setNewDiscussion({...newDiscussion, content: e.target.value})}
-                    maxLength={MAX_CONTENT_LENGTH}
-                    placeholder="Enter discussion content"
-                    rows={5}
-                  />
-                  <p className="text-sm text-gray-500 text-right">
-                    {newDiscussion.content.length}/{MAX_CONTENT_LENGTH}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Image (Optional)</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="block w-full text-sm text-gray-500
-                      file:mr-4 file:py-2 file:px-4
-                      file:rounded-md file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-red-50 file:text-red-700
-                      hover:file:bg-red-100"
-                  />
-                  {imagePreview && (
-                    <div className="mt-2">
-                      <img 
-                        src={imagePreview} 
-                        alt="Preview" 
-                        className="max-w-full h-auto rounded-lg"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowCreateDialog(false);
-                      setNewDiscussion({ title: '', content: '', image: null });
-                      setImagePreview(null);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleCreateDiscussion}
-                    disabled={!newDiscussion.title || !newDiscussion.content || uploading}
-                  >
-                    {uploading ? 'Posting...' : 'Post Discussion'}
-                  </Button>
-                </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Image (Optional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-red-50 file:text-red-700
+                    hover:file:bg-red-100"
+                />
+                {imagePreview && (
+                  <div className="mt-2">
+                    <img 
+                      src={imagePreview} 
+                      alt="Preview" 
+                      className="max-w-full h-auto rounded-lg"
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
+
+          {/* Fixed Buttons */}
+          <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateDialog(false);
+                setNewDiscussion({ title: '', content: '', image: null });
+                setImagePreview(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateDiscussion}
+              disabled={!newDiscussion.title || !newDiscussion.content || uploading}
+            >
+              {uploading ? 'Posting...' : 'Post Discussion'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
       </div>
     </div>
   );
