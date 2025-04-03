@@ -14,48 +14,72 @@ const header2Font = Baloo_2({
 
 const DiscussionsPage = () => {  
   const router = useRouter();  
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [discussions, setDiscussions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [discussions, setDiscussions] = useState([]);
   const [selectedDiscussion, setSelectedDiscussion] = useState(null);
 
-  // Sample data - replace with your actual data fetching
-  const sampleDiscussions = [
-    {
-      id: 1,
-      title: "Favorite Reading Spots",
-      topic: "General",
-      content: "Where does everyone like to read? I'm looking for new inspiration!",
-      comments: [
-        { id: 1, user: "Alex", text: "I love reading in coffee shops on rainy days", date: "2023-05-15" },
-        { id: 2, user: "Jamie", text: "My backyard hammock is perfect for summer reading", date: "2023-05-18" },
-      ]
-    },
-    {
-      id: 2,
-      title: "Upcoming Book Events",
-      topic: "Events",
-      content: "There's a great author talk next week at the downtown library",
-      comments: [
-        { id: 1, user: "Taylor", text: "Thanks for sharing! I'll definitely go", date: "2023-06-02" },
-      ]
-    }
-  ];
-
   useEffect(() => {
-    async function checkAuth() {
-      const { data } = await supabase.auth.getUser();
-      setIsLoggedIn(!!data.user);
-      setLoading(false);
-      
-      // In a real app, you would fetch actual discussion data here:
-      // const { data: discussionData } = await supabase.from('discussions').select('*');
-      // setDiscussions(discussionData || []);
-      
-      setDiscussions(sampleDiscussions); // Using sample data for now
-    }
-    checkAuth();
-  }, []);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // 1. Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        // 2. Fetch discussions with author info
+        const { data: discussionsData, error: discussionsError } = await supabase
+          .from('discussions')
+          .select(`
+            *,
+            author:profiles(username)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (discussionsError) throw discussionsError;
+
+        // 3. Fetch comments with commenter info
+        const { data: commentsData, error: commentsError } = await supabase
+          .from('comments')
+          .select(`
+            *,
+            commenter:profiles(username)
+          `);
+
+        if (commentsError) throw commentsError;
+
+        // 4. Combine the data
+        const discussionsWithComments = discussionsData.map(discussion => ({
+          ...discussion,
+          authorName: discussion.author?.username || 'Anonymous',
+          authorPhoto: discussion.author?.photo_url || null,
+          comments: commentsData
+            .filter(comment => comment.discussion_id === discussion.id)
+            .map(comment => ({
+              id: comment.id,
+              text: comment.content,
+              date: new Date(comment.created_at).toLocaleDateString(),
+              commenterName: comment.commenter?.username || 'Anonymous',
+              commenterPhoto: comment.commenter?.photo_url || null
+            }))
+        }));
+
+        setDiscussions(discussionsWithComments);
+
+      } catch (err) {
+        console.error('Error:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [router]);
 
   if (loading) {
     return (
@@ -65,7 +89,24 @@ const DiscussionsPage = () => {
     );
   }
 
-  if (!isLoggedIn) return null;
+  if (error) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error}
+            <button 
+              onClick={() => window.location.reload()} 
+              className="ml-2 underline"
+            >
+              Try Again
+            </button>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -122,15 +163,23 @@ const DiscussionsPage = () => {
           <div className="space-y-6">
             <Card>
               <CardContent className="p-6">
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 bg-gray-200 text-gray-800 rounded-full text-sm">
-                      {selectedDiscussion.topic}
-                    </span>
+                <div className="flex items-center gap-4 mb-4">
+                  {selectedDiscussion.authorPhoto && (
+                    <img 
+                      src={selectedDiscussion.authorPhoto} 
+                      alt={selectedDiscussion.authorName}
+                      className="w-10 h-10 rounded-full"
+                    />
+                  )}
+                  <div>
+                    <p className="font-medium">{selectedDiscussion.authorName}</p>
+                    <p className="text-sm text-gray-500">
+                      Posted on {new Date(selectedDiscussion.created_at).toLocaleDateString()}
+                    </p>
                   </div>
-                  <h2 className="text-2xl font-bold">{selectedDiscussion.title}</h2>
-                  <p className="text-gray-700 whitespace-pre-line">{selectedDiscussion.content}</p>
                 </div>
+                <h2 className="text-2xl font-bold mb-2">{selectedDiscussion.title}</h2>
+                <p className="text-gray-700 whitespace-pre-line">{selectedDiscussion.content}</p>
               </CardContent>
             </Card>
 
@@ -141,16 +190,25 @@ const DiscussionsPage = () => {
               </h3>
               
               {selectedDiscussion.comments.length > 0 ? (
-                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-4">
+                <div className="space-y-4">
                   {selectedDiscussion.comments.map(comment => (
                     <Card key={comment.id}>
                       <CardContent className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{comment.user}</p>
-                            <p className="text-gray-700">{comment.text}</p>
+                        <div className="flex items-center gap-4">
+                          {comment.commenterPhoto && (
+                            <img 
+                              src={comment.commenterPhoto} 
+                              alt={comment.commenterName}
+                              className="w-8 h-8 rounded-full"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex justify-between">
+                              <p className="font-medium">{comment.commenterName}</p>
+                              <span className="text-sm text-gray-500">{comment.date}</span>
+                            </div>
+                            <p className="text-gray-700 mt-1">{comment.text}</p>
                           </div>
-                          <span className="text-sm text-gray-500">{comment.date}</span>
                         </div>
                       </CardContent>
                     </Card>
@@ -165,7 +223,7 @@ const DiscussionsPage = () => {
           </div>
         ) : (
           /* Discussion List View */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[80vh] overflow-y-auto pr-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {discussions.map(discussion => (
               <Card 
                 key={discussion.id} 
@@ -173,18 +231,26 @@ const DiscussionsPage = () => {
                 onClick={() => setSelectedDiscussion(discussion)}
               >
                 <CardContent className="p-6">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 bg-gray-200 text-gray-800 rounded-full text-xs">
-                        {discussion.topic}
-                      </span>
-                    </div>
-                    <h3 className="text-lg font-bold">{discussion.title}</h3>
-                    <p className="text-gray-600 line-clamp-2">{discussion.content}</p>
-                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-2">
-                      <MessageSquare size={16} />
-                      <span>{discussion.comments.length} comments</span>
-                    </div>
+                  <div className="flex items-center gap-3 mb-3">
+                    {discussion.authorPhoto && (
+                      <img 
+                        src={discussion.authorPhoto} 
+                        alt={discussion.authorName}
+                        className="w-8 h-8 rounded-full"
+                      />
+                    )}
+                    <span className="font-medium">{discussion.authorName}</span>
+                  </div>
+                  <h3 className="text-lg font-bold mb-2">{discussion.title}</h3>
+                  <p className="text-gray-600 line-clamp-3 mb-4">{discussion.content}</p>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">
+                      {new Date(discussion.created_at).toLocaleDateString()}
+                    </span>
+                    <span className="flex items-center gap-1 text-gray-500">
+                      <MessageSquare size={14} />
+                      {discussion.comments.length}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
