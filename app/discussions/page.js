@@ -1,8 +1,11 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, ChevronLeft } from 'lucide-react';
+import { MessageSquare, ChevronLeft, Plus, X } from 'lucide-react';
 import { Card, CardContent } from '../src/components/ui/card';
+import { Button } from '../src/components/ui/button';
+import { Input } from '../src/components/ui/input';
+import { Textarea } from '../src/components/ui/textarea';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
 import supabase from '../supabaseClient';
 import { Baloo_2 } from 'next/font/google';
@@ -18,41 +21,51 @@ const DiscussionsPage = () => {
   const [error, setError] = useState(null);
   const [discussions, setDiscussions] = useState([]);
   const [selectedDiscussion, setSelectedDiscussion] = useState(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newDiscussion, setNewDiscussion] = useState({
+    title: '',
+    content: '',
+    image: null
+  });
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Character limits
+  const MAX_TITLE_LENGTH = 100;
+  const MAX_CONTENT_LENGTH = 1000;
+  const MAX_COMMENT_LENGTH = 500;
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        // 1. Get current user
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           router.push('/login');
           return;
         }
 
-        // 2. Fetch discussions with author info
         const { data: discussionsData, error: discussionsError } = await supabase
           .from('discussions')
           .select(`
             *,
-            author:profiles(username)
+            author:profiles(username, photo_url)
           `)
           .order('created_at', { ascending: false });
 
         if (discussionsError) throw discussionsError;
 
-        // 3. Fetch comments with commenter info
         const { data: commentsData, error: commentsError } = await supabase
           .from('comments')
           .select(`
             *,
-            commenter:profiles(username)
-          `);
+            commenter:profiles(username, photo_url)
+          `)
+          .order('created_at', { ascending: false });
 
         if (commentsError) throw commentsError;
 
-        // 4. Combine the data
         const discussionsWithComments = discussionsData.map(discussion => ({
           ...discussion,
           authorName: discussion.author?.username || 'Anonymous',
@@ -69,7 +82,6 @@ const DiscussionsPage = () => {
         }));
 
         setDiscussions(discussionsWithComments);
-
       } catch (err) {
         console.error('Error:', err);
         setError(err.message);
@@ -80,6 +92,159 @@ const DiscussionsPage = () => {
 
     fetchData();
   }, [router]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setNewDiscussion({...newDiscussion, image: file});
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCreateDiscussion = async () => {
+    try {
+      setUploading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      let imageUrl = null;
+      if (newDiscussion.image) {
+        const fileExt = newDiscussion.image.name.split('.').pop();
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        const filePath = `discussion-images/${fileName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('discussion-images')
+          .upload(filePath, newDiscussion.image);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('discussion-images')
+          .getPublicUrl(filePath);
+        
+        imageUrl = urlData.publicUrl;
+      }
+
+      const { data: discussionData, error: discussionError } = await supabase
+        .from('discussions')
+        .insert([{
+          title: newDiscussion.title,
+          content: newDiscussion.content,
+          user_id: user.id,
+          image_url: imageUrl
+        }])
+        .select();
+
+      if (discussionError) throw discussionError;
+
+      const { data: refreshedDiscussions } = await supabase
+        .from('discussions')
+        .select(`
+          *,
+          author:profiles(username, photo_url)
+        `)
+        .order('created_at', { ascending: false });
+
+      const { data: commentsData } = await supabase
+        .from('comments')
+        .select(`
+          *,
+          commenter:profiles(username, photo_url)
+        `)
+        .order('created_at', { ascending: false });
+
+      const updatedDiscussions = refreshedDiscussions.map(discussion => ({
+        ...discussion,
+        authorName: discussion.author?.username || 'Anonymous',
+        authorPhoto: discussion.author?.photo_url || null,
+        comments: commentsData
+          .filter(comment => comment.discussion_id === discussion.id)
+          .map(comment => ({
+            id: comment.id,
+            text: comment.content,
+            date: new Date(comment.created_at).toLocaleDateString(),
+            commenterName: comment.commenter?.username || 'Anonymous',
+            commenterPhoto: comment.commenter?.photo_url || null
+          }))
+      }));
+
+      setDiscussions(updatedDiscussions);
+      setShowCreateDialog(false);
+      setNewDiscussion({ title: '', content: '', image: null });
+      setImagePreview(null);
+    } catch (err) {
+      console.error('Error creating discussion:', err);
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAddComment = async (discussionId, commentText) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      if (commentText.length > MAX_COMMENT_LENGTH) {
+        setError(`Comment must be less than ${MAX_COMMENT_LENGTH} characters`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('comments')
+        .insert([{
+          discussion_id: discussionId,
+          user_id: user.id,
+          content: commentText
+        }]);
+
+      if (error) throw error;
+
+      const { data: commentsData } = await supabase
+        .from('comments')
+        .select(`
+          *,
+          commenter:profiles(username, photo_url)
+        `)
+        .eq('discussion_id', discussionId)
+        .order('created_at', { ascending: false });
+
+      const updatedDiscussions = discussions.map(discussion => 
+        discussion.id === discussionId
+          ? {
+              ...discussion,
+              comments: commentsData.map(comment => ({
+                id: comment.id,
+                text: comment.content,
+                date: new Date(comment.created_at).toLocaleDateString(),
+                commenterName: comment.commenter?.username || 'Anonymous',
+                commenterPhoto: comment.commenter?.photo_url || null
+              }))
+            }
+          : discussion
+      );
+
+      setDiscussions(updatedDiscussions);
+      
+      if (selectedDiscussion?.id === discussionId) {
+        setSelectedDiscussion(updatedDiscussions.find(d => d.id === discussionId));
+      }
+    } catch (err) {
+      console.error('Error adding comment:', err);
+      setError(err.message);
+    }
+  };
 
   if (loading) {
     return (
@@ -110,7 +275,6 @@ const DiscussionsPage = () => {
 
   return (
     <div className="min-h-screen bg-white flex">
-      {/* Sidebar */}
       <section>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
@@ -122,7 +286,7 @@ const DiscussionsPage = () => {
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
             </button>
-            <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+            <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg  bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
             </button>
@@ -142,7 +306,6 @@ const DiscussionsPage = () => {
         </ul>
       </section>
 
-      {/* Main Content */}
       <div className="ml-72 p-8 w-full">
         <h1 className={`text-3xl font-bold text-black mb-8 ${header2Font.className}`}>
           {selectedDiscussion ? (
@@ -159,7 +322,6 @@ const DiscussionsPage = () => {
         </h1>
 
         {selectedDiscussion ? (
-          /* Discussion Detail View */
           <div className="space-y-6">
             <Card>
               <CardContent className="p-6">
@@ -179,6 +341,13 @@ const DiscussionsPage = () => {
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold mb-2">{selectedDiscussion.title}</h2>
+                {selectedDiscussion.image_url && (
+                  <img 
+                    src={selectedDiscussion.image_url} 
+                    alt={selectedDiscussion.title}
+                    className="max-w-full h-auto rounded-lg mb-4"
+                  />
+                )}
                 <p className="text-gray-700 whitespace-pre-line">{selectedDiscussion.content}</p>
               </CardContent>
             </Card>
@@ -189,6 +358,33 @@ const DiscussionsPage = () => {
                 Comments ({selectedDiscussion.comments.length})
               </h3>
               
+              <div className="flex gap-4">
+                <Input 
+                  placeholder="Add a comment..."
+                  maxLength={MAX_COMMENT_LENGTH}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      handleAddComment(selectedDiscussion.id, e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <Button 
+                  onClick={(e) => {
+                    const input = e.currentTarget.previousElementSibling;
+                    if (input.value.trim()) {
+                      handleAddComment(selectedDiscussion.id, input.value);
+                      input.value = '';
+                    }
+                  }}
+                >
+                  Post
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500 text-right">
+                {MAX_COMMENT_LENGTH} characters max
+              </p>
+
               {selectedDiscussion.comments.length > 0 ? (
                 <div className="space-y-4">
                   {selectedDiscussion.comments.map(comment => (
@@ -222,7 +418,6 @@ const DiscussionsPage = () => {
             </div>
           </div>
         ) : (
-          /* Discussion List View */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {discussions.map(discussion => (
               <Card 
@@ -242,6 +437,13 @@ const DiscussionsPage = () => {
                     <span className="font-medium">{discussion.authorName}</span>
                   </div>
                   <h3 className="text-lg font-bold mb-2">{discussion.title}</h3>
+                  {discussion.image_url && (
+                    <img 
+                      src={discussion.image_url} 
+                      alt={discussion.title}
+                      className="max-w-full h-auto rounded-lg mb-4"
+                    />
+                  )}
                   <p className="text-gray-600 line-clamp-3 mb-4">{discussion.content}</p>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500">
@@ -255,6 +457,107 @@ const DiscussionsPage = () => {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        )}
+
+        {!selectedDiscussion && (
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="fixed bottom-8 right-8 w-16 h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+          >
+            <Plus size={32} />
+          </button>
+        )}
+
+        {showCreateDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Create New Discussion</h2>
+                <button 
+                  onClick={() => {
+                    setShowCreateDialog(false);
+                    setNewDiscussion({ title: '', content: '', image: null });
+                    setImagePreview(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Title</label>
+                  <Input
+                    value={newDiscussion.title}
+                    onChange={(e) => setNewDiscussion({...newDiscussion, title: e.target.value})}
+                    maxLength={MAX_TITLE_LENGTH}
+                    placeholder="Enter discussion title"
+                  />
+                  <p className="text-sm text-gray-500 text-right">
+                    {newDiscussion.title.length}/{MAX_TITLE_LENGTH}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <Textarea
+                    value={newDiscussion.content}
+                    onChange={(e) => setNewDiscussion({...newDiscussion, content: e.target.value})}
+                    maxLength={MAX_CONTENT_LENGTH}
+                    placeholder="Enter discussion content"
+                    rows={5}
+                  />
+                  <p className="text-sm text-gray-500 text-right">
+                    {newDiscussion.content.length}/{MAX_CONTENT_LENGTH}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Image (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="block w-full text-sm text-gray-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-md file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-red-50 file:text-red-700
+                      hover:file:bg-red-100"
+                  />
+                  {imagePreview && (
+                    <div className="mt-2">
+                      <img 
+                        src={imagePreview} 
+                        alt="Preview" 
+                        className="max-w-full h-auto rounded-lg"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowCreateDialog(false);
+                      setNewDiscussion({ title: '', content: '', image: null });
+                      setImagePreview(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateDiscussion}
+                    disabled={!newDiscussion.title || !newDiscussion.content || uploading}
+                  >
+                    {uploading ? 'Posting...' : 'Post Discussion'}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
