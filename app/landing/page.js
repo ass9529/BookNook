@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, BookOpen, PlusCircle, LockKeyhole } from 'lucide-react';
+import { Bell, BookOpen, PlusCircle, LockKeyhole, Star } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../src/components/ui/tabs';
 import { Card, CardContent } from '../src/components/ui/card';
@@ -21,6 +21,9 @@ export default function BookClubsPage() {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [newClub, setNewClub] = useState({ name: '', description: '' });
   const [joinCode, setJoinCode] = useState('');
+  const [user, setUser] = useState(null);
+  const [latestDiscussions, setLatestDiscussions] = useState({});
+  
 
 
   useEffect(() => {
@@ -33,10 +36,11 @@ export default function BookClubsPage() {
           router.push('/login');
           return;
         }
+        setUser(user);
 
 
 
-        const [notificationsRes, clubsRes] = await Promise.all([
+        const [notificationsRes, clubsRes, discussionData] = await Promise.all([
           supabase
             .from('notifications')
             .select('*')
@@ -46,21 +50,47 @@ export default function BookClubsPage() {
           supabase
             .from('club_members')
             .select('club:clubs(*)')
-            .eq('user_id', user.id)
+            .eq('user_id', user.id),
+
         ]);
 
         if (notificationsRes.error) throw notificationsRes.error;
         if (clubsRes.error) throw clubsRes.error;
 
         setNotifications(notificationsRes.data || []);
-        setClubs(clubsRes.data?.map(m => m.club) || []);
+        setLatestDiscussions(discussionData || {});
+        const userClubs = clubsRes.data?.map(m => m.club) || [];
+        setClubs(userClubs);
+
+             // Fetch latest discussions for all clubs
+        const clubIds = userClubs.map(c => c.id);
+        const { data: discussionsData } = await supabase
+          .from('discussions')
+          .select('*')
+          .in('club_id', clubIds)
+          .order('created_at', { ascending: false });
+
+        // Group by club and keep only latest per club
+        const latest = discussionsData?.reduce((acc, discussion) => {
+          if (!acc[discussion.club_id]) {
+            acc[discussion.club_id] = discussion;
+          }
+          return acc;
+        }, {});
+
+     setLatestDiscussions(latest || {});
 
       } catch (err) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
+
+    
+
     };
+
+
 
     fetchData();
   }, [router]);
@@ -224,7 +254,11 @@ export default function BookClubsPage() {
       <div className="flex items-center gap-2 mb-6">
         <BookOpen className="w-5 h-5" />
         <h2 className="text-2xl font-semibold">Your Clubs</h2>
+        <p className="text-sm text-muted-foreground">
+          **Clubs you own are marked with a <Star className="w-4 h-4 inline-block text-yellow-500 fill-yellow-200" />
+        </p>
       </div>
+
 
       {clubs.length > 0 ? (
         <Tabs defaultValue={clubs[0].id}>
@@ -236,6 +270,9 @@ export default function BookClubsPage() {
                 className="flex-shrink-0 whitespace-nowrap"
               >
                 {club.name}
+                {club.owner_id === user.id && (
+                  <Star className="w-4 h-4 text-yellow-500 fill-yellow-200" />
+                )}
               </TabsTrigger>
             ))}
             <TabsTrigger 
@@ -251,12 +288,50 @@ export default function BookClubsPage() {
               <TabsContent key={club.id} value={club.id}>
                 <Card>
                   <CardContent className="p-6">
-                    <div className="mb-4">
+                    <div className="gap-2 mb-4">
+                      <p className="text-l font-style: italic text-gray-600">{club.description || 'No Description'}</p>
+                    </div>
+                    
+                    <div className="gap-2 mb-4">
                       <p className="text-sm text-gray-500">Current Book</p>
                       <p className="text-xl font-bold">{club.current_book || 'Not selected'}</p>
+                      
                     </div>
+
+                    {/* Add new discussions section */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium">Latest Discussion</h3>
+                        <span className="text-sm text-gray-500">
+                          {latestDiscussions[club.id]?.created_at && 
+                            new Date(latestDiscussions[club.id].created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      
+                      {latestDiscussions[club.id] ? (
+                        <div className="border rounded-lg p-4">
+                          <h4 className="font-medium mb-2">
+                            {latestDiscussions[club.id].title}
+                          </h4>
+                          <p className="text-sm text-gray-600 line-clamp-2">
+                            {latestDiscussions[club.id].content}
+                          </p>
+                          <div className="mt-3 flex items-center gap-2 text-sm">
+                            <span className="text-gray-500">By:</span>
+                            <span className="font-medium">
+                              {latestDiscussions[club.id].author_name || 'Anonymous'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-gray-500">
+                          No discussions yet
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-sm text-gray-500 mb-4">
-                      {club.member_count || 0} members
+                      {club.member_count || 0} member(s)
                     </p>
                     
                     <button
