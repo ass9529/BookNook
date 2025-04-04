@@ -52,7 +52,7 @@ const BookClubsPage = () => {
       currentBook: "The Thursday Murder Club",
       topPosts: [
         { id: 1, title: "Theory about the ending", likes: 15, comments: 8 },
-        { id: 2, title: "Character analysis: Joyce", likes: 12, comments: 5 },
+        { id: 2, title: "Character analysisz: Joyce", likes: 12, comments: 5 },
       ]
     },
     {

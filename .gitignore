@@ -30,8 +30,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# test pages
+test-books/
+
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
 
 # vercel
 .vercel
