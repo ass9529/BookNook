@@ -213,6 +213,8 @@ const ReviewsPage = () => {
         authorString = 'Unknown Author';
       }
 
+      console.log(authorString);
+
       return {
         id: item.id,
         title: item.volumeInfo.title,
@@ -235,7 +237,7 @@ const handleAddBookFromSearch = async (book) => {
     const bookDetails = {
       id: book.id,
       title: book.title,
-      authors: book.authorString,
+      authors: book.author,
       thumbnail: book.thumbnail || ''
     };
 
