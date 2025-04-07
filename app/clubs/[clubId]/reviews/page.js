@@ -710,7 +710,7 @@ return (
             ))}
           </div>
         ) : searchQuery && !searching ? (
-          <p className="text-gray-500 text-center py-4">No books found. Try a different search.</p>
+          <p className="text-gray-500 text-center py-4">Press search to find books.</p>
         ) : null}
       </div>
     </div>
