@@ -96,6 +96,7 @@ const ReviewsPage = () => {
             user:profiles(username, photo_url)
             `)
           .in('book_id', bookIds)
+          .eq('c_id', clubId)
           .order('created_at', { ascending: false });
 
 
