@@ -42,9 +42,8 @@ export default function BookClubsPage() {
           email: user.email,
           username: user.user_metadata?.username || user.email
         });
-
-
-        const [notificationsRes, clubsRes, discussionData] = await Promise.all([
+    
+        const [notificationsRes, { data: clubsData }] = await Promise.all([
           supabase
             .from('notifications')
             .select('*')
@@ -54,47 +53,60 @@ export default function BookClubsPage() {
           supabase
             .from('club_members')
             .select('club:clubs(*)')
-            .eq('user_id', user.id),
-
+            .eq('user_id', user.id)
         ]);
-
+    
         if (notificationsRes.error) throw notificationsRes.error;
-        if (clubsRes.error) throw clubsRes.error;
-
+    
         setNotifications(notificationsRes.data || []);
-        setLatestDiscussions(discussionData || {});
-        const userClubs = clubsRes.data?.map(m => m.club) || [];
+    
+        // Get all club IDs
+        const clubIds = clubsData?.map(m => m.club.id) || [];
+    
+        // Fetch all club members for these clubs
+        const { data: allMembers, error: membersError } = await supabase
+          .from('club_members')
+          .select('club_id')
+          .in('club_id', clubIds);
+    
+        if (membersError) throw membersError;
+    
+        // Count members per club
+        const memberCounts = allMembers.reduce((acc, { club_id }) => {
+          acc[club_id] = (acc[club_id] || 0) + 1;
+          return acc;
+        }, {});
+    
+        // Add member_count to each club
+        const userClubs = clubsData?.map(m => ({
+          ...m.club,
+          member_count: memberCounts[m.club.id] || 0
+        })) || [];
+    
         setClubs(userClubs);
-
-             // Fetch latest discussions for all clubs
-        const clubIds = userClubs.map(c => c.id);
+    
+        // Fetch latest discussions
         const { data: discussionsData } = await supabase
           .from('discussions')
           .select('*')
           .in('club_id', clubIds)
           .order('created_at', { ascending: false });
-
-        // Group by club and keep only latest per club
+    
         const latest = discussionsData?.reduce((acc, discussion) => {
           if (!acc[discussion.club_id]) {
             acc[discussion.club_id] = discussion;
           }
           return acc;
         }, {});
-
-     setLatestDiscussions(latest || {});
-
+    
+        setLatestDiscussions(latest || {});
+    
       } catch (err) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
-
-    
-
     };
-
-
 
     fetchData();
   }, [router]);
@@ -331,7 +343,7 @@ export default function BookClubsPage() {
                     </div>
 
                     <p className="text-sm text-gray-500 mb-4">
-                      {club.member_count || 0} member(s)
+                      {club.member_count} member(s)
                     </p>
                     
                     <button
