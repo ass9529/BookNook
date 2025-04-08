@@ -8,9 +8,10 @@ import { Input } from '../../../src/components/ui/input';
 import { Textarea } from '../../../src/components/ui/textarea';
 import { Baloo_2 } from 'next/font/google';
 import { useParams, useRouter } from 'next/navigation';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
-import 'react-big-calendar/lib/css/react-big-calendar.css';
+
 import supabase from '../../../supabaseClient';
 
 const header2Font = Baloo_2({ weight: ['800'], subsets: ['latin'] });
