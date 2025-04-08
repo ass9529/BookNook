@@ -37,7 +37,11 @@ export default function BookClubsPage() {
           return;
         }
         setUser(user);
-
+        await supabase.from('profiles').upsert({
+          id: user.id,
+          email: user.email,
+          username: user.user_metadata?.username || user.email
+        });
 
 
         const [notificationsRes, clubsRes, discussionData] = await Promise.all([
