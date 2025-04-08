@@ -296,11 +296,7 @@ export default function BookClubsPage() {
                       <p className="text-l font-style: italic text-gray-600">{club.description || 'No Description'}</p>
                     </div>
                     
-                    <div className="gap-2 mb-4">
-                      <p className="text-sm text-gray-500">Current Book</p>
-                      <p className="text-xl font-bold">{club.current_book || 'Not selected'}</p>
-                      
-                    </div>
+                    
 
                     {/* Add new discussions section */}
                     <div className="space-y-4">
