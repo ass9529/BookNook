@@ -1,14 +1,17 @@
-'use client'; 
+'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 import { Bell, BookOpen } from 'lucide-react';
 import { Card, CardContent } from '../src/components/ui/card';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../src/components/ui/tabs';
-import supabase from '../supabaseClient'; 
+import supabase from '../supabaseClient';
+import { useParams } from 'next/navigation';
 import { Baloo_2 } from 'next/font/google';
 import { Pacifico } from 'next/font/google';
+import Image from 'next/image';
+import ResetModal from '../components/ResetModal'
 
 const headerFont = Baloo_2({
   weight: ['400', '800'],
@@ -26,87 +29,301 @@ const footerFont = Pacifico({
 });
 
 
-const BookClubsPage = () => {  
-  const router = useRouter();  
+const ProfilePage = () => {
+  const params = useParams();
+  const clubId = params.clubId;
+  const router = useRouter();
   const [IsLoggedIn, setIsLoggedIn] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
 
+  //TODO: Should default to data from SupaBase
+  const [username, setUsername] = useState('')
+  const [bio, setBio] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+
+  const [isEditing, setIsEditing] = useState(true)
+  const [selectedFile, setSelectedFile] = useState(null)
+
+
+  // Think of it as code that runs before you see your component that fetches all data you'll need from Supabase
   useEffect(() => {
     async function fetchData() {
-      const { data } = await supabase.auth.getUser();
-      if (data.user) {
+      const {
+        data: authData,
+        error: authError
+      } = await supabase.auth.getUser();
+
+      if (authError) {
+        console.error('Error getting auth user:', authError);
+        return;
+      }
+
+      if (authData.user) {
+        console.log('Auth user:', authData.user);
+
+        const {
+          data: userData,
+          error: userError
+        } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (userError) {
+          console.error('Error fetching user from table:', userError);
+          return;
+        }
+
+        console.log('User from table:', userData);
+
+        // Load in data from database
         setIsLoggedIn(true);
+        setUserProfile(userData)
+        setUsername(userData.username)
+        setBio(userData.bio)
+        setEmail(userData.email)
+        setImageUrl(userData.photo_url)
       }
     }
+
     fetchData();
   }, []);
 
+  const uploadImageAndGetUrl = async (event) => {
+    const uniqueSuffix = Date.now();
+    const file = selectedFile
 
+    const fileExt = file.name.split('.').pop();
+    const filePath = `avatars/${userProfile.id}-${uniqueSuffix}.${fileExt}`;
 
+    // Upload image to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) throw uploadError;
+
+    // Get public URL
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    const publicUrl = data.publicUrl;
+
+    // Update user profile with avatar URL
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ photo_url: publicUrl })
+      .eq('id', userProfile.id);
+
+    if (updateError) throw updateError;
+
+    setImageUrl(publicUrl);
+  }
+
+  const handleSave = async () => {
+    if (password) {
+      const { data: authData, error: authError } = await supabase.auth.updateUser({
+        email: email,
+        password: password
+      })
+      console.log("Auth data saved", authData);
+    }
+    else {
+      const { data: authData, error: authError } = await supabase.auth.updateUser({
+        email: email
+      })
+      console.log("Auth data saved", authData);
+    }
+
+    // Look here for an example of writing data to Supabase
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles') // Table name
+      .update({
+        username: username,
+        email: email,
+        bio: bio
+      })
+      .eq('id', userProfile.id)
+      .select()
+      .single()
+
+    if (profileError) {
+      console.error('Error updating profile:', profileError)
+      return null
+    }
+
+    console.log("Auth data saved", profileData);
+    setIsEditing(!isEditing)
+  }
+  const handleResetPassword = () => {
+    console.log("Password reset clicked");
+  }
 
   return (
-    IsLoggedIn &&
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-     
-
-        {/* Sidebar */}
-       <section >
-          <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
-          <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
-
+    <div className="min-h-screen bg-white flex">
+      {/* Sidebar */}
+      <section>
+        <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
+          <div className="flex justify-center items-center flex-wrap space-y-8 p-6">
             <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
-              </button>
-              <button onClick={() => router.push('/reviews')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
-              </button>
-              <button onClick={() => router.push('/discussions')} className={`relative group w-full px-4 py-2 rounded-lg  bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
-              </button>
-              <button onClick={() => router.push('/members')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Members</span>
-              </button>
-              <button onClick={() => router.push('/calendar')} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
-                <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-                <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
-              </button>
-              <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
+            </button>
+            <button onClick={() => router.push(`/clubs/${clubId}/reviews`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
+            </button>
+            <button onClick={() => router.push(`/clubs/${clubId}/discussions`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Discussions</span>
+            </button>
+            <button onClick={() => router.push(`/clubs/${clubId}/members`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Members</span>
+            </button>
+            <button onClick={() => router.push(`/clubs/${clubId}/calendar`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Calendar</span>
+            </button>
+            <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
-            </button>  
-          </div> 
-          </ul>
-
-          {/* Navigation Button */}
-        </section>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-       
-
-        {/* discussion board tabs */}
-        <section className={`max-w-4xl mx-auto ${headerFont.className}`}>
-          <div className="flex items-center gap-2 mb-6">
-            <BookOpen className="w-5 h-5" />
-            <h2 className="text-3xl font-semibold">Your Profile</h2>
+            </button>
           </div>
+        </ul>
+      </section>
 
-          
+      {/* Main Content */}
+      <div className="ml-72 p-8 w-full">
+        <h1 className={`text-3xl font-bold text-black mb-8 flex items-center gap-2 ${header2Font.className}`}>
+          Profile
+        </h1>
+        <Card className={`shadow-lg border bg-white rounded-2xl p-4 ${header2Font.className}`}>
+          <CardContent>
+            <div className="flex-col items-center justify-between mb-4">
+              <div className='flex items-center justify-between'>
+                <p className="w-fit text-2xl font-bold text-black mb-6">
+                  Your Profile
+                </p>
+                {isEditing ?
+                  <button
+                    onClick={() => setIsEditing(!isEditing)}
+                    className="bg-red-200 hover:bg-gray-200 text-black font-semibold py-2 px-4 rounded text-lg">
+                    Edit
+                  </button>
+                  :
+                  <button
+                    onClick={() => handleSave()}
+                    className="bg-green-200 hover:bg-gray-200 text-black font-semibold py-2 px-4 rounded text-lg">
+                    Save
+                  </button>
+                }
+              </div>
+              <div className='mb-10'>
+                <p className="text-sm font-semibold mb-4 text-gray-700">Profile Image</p>
+                <div>
+                  <Image
+                    src={imageUrl || "/Profile.png"}
+                    alt="Profile Picture"
+                    width={150}
+                    height={150}
+                    className="rounded-full mb-4 object-cover"
+                  />
+                  {!isEditing && (
+                    <>
+                      <input
+                        type="file"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setSelectedFile(file);
+                          }
+                        }}
+                        className="block w-full text-sm text-gray-700
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-md file:border-0
+              file:text-sm file:font-semibold
+              file:bg-red-200 file:text-black
+              hover:file:bg-gray-300"
+                      />
 
-            <div className="shadow-lg border bg-white rounded-lg pt-6 px-6 h-60">
-            </div> 
-                   
-               
-            
-          
+                      {selectedFile && (
+                        <button
+                          onClick={() => { uploadImageAndGetUrl() }}
+                          className="mt-4 px-4 py-2 bg-red-200 text-black rounded-md font-semibold hover:bg-gray-200"
+                        >
+                          Save
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className='mb-8'>
+                <p className="text-lg font-semibold mb-3 text-gray-700">Username</p>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isEditing}
+                  className={`w-full px-4 py-2 border rounded-md text-gray-800 bg-white transition 
+    ${!isEditing
+                      ? 'border-red-200 focus:ring-2 focus:ring-black focus:outline-none'
+                      : 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'}`}
+                />
 
-        </section>
+              </div>
+              <div className='mb-8'>
+                <p className={`text-lg font-semibold mb-1 text-gray-700 ${header2Font.className}`}>Email</p>
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isEditing}
+                  className={`w-full px-4 py-2 border rounded-md text-gray-800 bg-white transition 
+    ${!isEditing
+                      ? 'border-red-200 focus:ring-2 focus:ring-black focus:outline-none'
+                      : 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'}`}
+                />
+              </div>
+              <div className="mb-8">
+                <p className={`text-lg font-semibold mb-1 text-gray-700 ${header2Font.className}`}>Bio</p>
+                <textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  disabled={isEditing}
+                  className={`w-full px-4 py-2 border rounded-md text-gray-800 bg-white transition 
+    ${!isEditing
+                      ? 'border-red-200 focus:ring-2 focus:ring-black focus:outline-none'
+                      : 'bg-gray-100 border-gray-300 text-gray-500 cursor-not-allowed'}`}
+                />
+              </div>
+              <div className="mb-8">
+                <p className="text-lg font-semibold mb-1 text-gray-700">Password</p>
+                <button
+                  className="bg-red-200 hover:bg-gray-300 text-black font-semibold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isEditing}
+                  onClick={() => {setShowPasswordModal(!showPasswordModal)}}
+                >
+                  Reset Password
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+      {true &&
+        <ResetModal
+          isModalOpen={showPasswordModal}
+          setIsModalOpen={setShowPasswordModal}
+        
+        />
+      }
     </div>
   );
 };
 
-export default BookClubsPage;
+export default ProfilePage;
