@@ -30,17 +30,14 @@ const CalendarPage = () => {
     endTime: ''
   });
 
-
-
-
   const [events, setEvents] = useState([]);
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showEventDetailsDialog, setShowEventDetailsDialog] = useState(false);
   const [user, setUser] = useState(null);
   const [url, setUrl] = useState('');
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [profileData, setProfileData] = useState(null)
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [clubData, setClubData] = useState(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -55,91 +52,107 @@ const CalendarPage = () => {
       }
 
       if (authData.user) {
-        console.log('Auth user:', authData.user);
+        setUser(authData.user);
 
-        const {
-          data: userData,
-          error: userError
-        } = await supabase
-          .from('profiles')
+        // Fetch club data including URL
+        const { data: clubData, error: clubError } = await supabase
+          .from('clubs')
           .select('*')
-          .eq('id', authData.user.id)
+          .eq('id', clubId)
           .single();
 
-        if (userError) {
-          console.error('Error fetching user from table:', userError);
+        if (clubError) {
+          console.error('Error fetching club data:', clubError);
           return;
         }
 
-        console.log('User from table:', userData);
-        setProfileData(userData)
-        setUrl(userData.club_url ? userData.club_url  : "")
+        setClubData(clubData);
+        setUrl(clubData.url || '');
 
-        const {
-          data: eventData,
-          error: eventError
-        } = await supabase
+        // Fetch events specific to this club
+        const { data: eventData, error: eventError } = await supabase
           .from('event')
           .select('*')
-          .eq('user_id', authData.user.id)
+          .eq('club_id', clubId);
 
         if (eventError) {
-          console.error('Error fetching user from table:', eventError);
+          console.error('Error fetching events:', eventError);
           return;
         }
 
-        console.log('User from table:', eventData);
-        setEvents(convertToEventModel(eventData))
-        setUser(authData.user)
+        setEvents(convertToEventModel(eventData));
       }
     }
 
     fetchData();
-  }, []);
+  }, [clubId]);
 
   const convertToEventModel = (events) => {
     return events.map(e => ({
+      id: e.id,
       title: e.title,
-      start: e.start_date,
-      end: e.end_date
+      start: new Date(e.start_date),
+      end: new Date(e.end_date)
     }));
   };
 
   const handleSaveUrl = async () => {
-    const { data, error: profileError } = await supabase
-      .from('profiles') // Table name
-      .update({
-        club_url: url
-      })
-      .eq('id', profileData.id)
+    if (!clubData) return;
+
+    console.log('Trying to update club URL:', { clubId, url });
+
+    const { data, error } = await supabase
+      .from('clubs')
+      .update({url : url})
+      .eq('id', clubId)
       .select()
-      .single()
+      .single();
 
-      setIsEditMode(!isEditMode)
+    if (error) {
+      console.error('Error updating club URL:', error);
+      return;
+    }
 
-  }
+    setClubData(data);
+    setIsEditMode(false);
+  };
 
   const handleAddEvent = async () => {
-    console.log('Checking newEvent before insert:', newEvent);
-    // Validate that all required fields are filled
     if (
       !newEvent.title ||
       !newEvent.startDate || !newEvent.startTime ||
       !newEvent.endDate || !newEvent.endTime
     ) return;
 
-    // Combine the date and time manually
     const startDateTimeString = `${newEvent.startDate} ${newEvent.startTime}`;
     const endDateTimeString = `${newEvent.endDate} ${newEvent.endTime}`;
-
-    // Create date objects from the combined date-time strings
     const startDateTime = new Date(startDateTimeString);
     const endDateTime = new Date(endDateTimeString);
 
-    // Add the event
-    setEvents([...events, { title: newEvent.title, start: startDateTime, end: endDateTime }]);
+    const { data, error } = await supabase
+      .from('event')
+      .insert([{
+        title: newEvent.title,
+        start_date: startDateTime,
+        end_date: endDateTime,
+        user_id: user.id,
+        club_id: clubId
+      }])
+      .select();
 
-    // Reset the form
+    if (error) {
+      console.error('Error adding event:', error);
+      return;
+    }
+
+    const addedEvent = data[0];
+    setEvents([...events, {
+      id: addedEvent.id,
+      title: addedEvent.title,
+      start: new Date(addedEvent.start_date),
+      end: new Date(addedEvent.end_date)
+    }]);
+
     setNewEvent({
       title: '',
       startDate: '',
@@ -148,20 +161,22 @@ const CalendarPage = () => {
       endTime: ''
     });
 
+    setShowCreateEventDialog(false);
+  };
+
+  const handleDeleteEvent = async (event) => {
     const { error } = await supabase
       .from('event')
-      .insert([
-        {
-          title: newEvent.title,
-          start_date: startDateTime,
-          end_date: endDateTime,
-          user_id: user.id
-        }
-      ]);
+      .delete()
+      .eq('id', event.id);
 
+    if (error) {
+      console.error('Error deleting event:', error);
+      return;
+    }
 
-    // Close the dialog
-    setShowCreateEventDialog(false);
+    setEvents(events.filter(e => e.id !== event.id));
+    setShowEventDetailsDialog(false);
   };
 
   return (
@@ -170,7 +185,6 @@ const CalendarPage = () => {
       <section>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6">
-
             <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
@@ -207,12 +221,12 @@ const CalendarPage = () => {
         {/* URL Input Section*/}
         <div className="space-y-3">
           <div className={`${header2Font.className}`}>
-            <label className="block text-xl font-medium mb-1">URL</label>
+            <label className="block text-xl font-medium mb-1">Club URL</label>
             <Input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter a valid URL"
+              placeholder="Enter a valid URL for this club"
               readOnly={!isEditMode}
               className={`${!isEditMode ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
@@ -227,7 +241,6 @@ const CalendarPage = () => {
             </Button>
           </div>
         </div>
-
 
         <Card className={`shadow-lg border bg-white rounded-2xl p-4 ${header2Font.className}`}>
           <CardContent>
@@ -253,12 +266,12 @@ const CalendarPage = () => {
               }}
               eventPropGetter={() => ({
                 style: {
-                  backgroundColor: '#6B7280', // lighter soft dark gray
-                  fontSize: '0.75rem',        // smaller text (Tailwind's text-sm)
-                  padding: '2px 4px',         // tighter padding
-                  height: '1.5rem',           // reduce height
-                  borderRadius: '0.375rem',   // Tailwind's rounded-md
-                  color: 'white',             // make sure it's readable
+                  backgroundColor: '#6B7280',
+                  fontSize: '0.75rem',
+                  padding: '2px 4px',
+                  height: '1.5rem',
+                  borderRadius: '0.375rem',
+                  color: 'white',
                   overflow: 'hidden',
                   whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
@@ -289,9 +302,7 @@ const CalendarPage = () => {
                   <Input value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} />
                 </div>
 
-                {/* Start Date and Time */}
                 <div className="flex gap-4">
-                  {/* Start Date */}
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-1">Start Date</label>
                     <Input
@@ -302,7 +313,6 @@ const CalendarPage = () => {
                     />
                   </div>
 
-                  {/* Start Time */}
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-1">Start Time</label>
                     <Input
@@ -314,9 +324,7 @@ const CalendarPage = () => {
                   </div>
                 </div>
 
-                {/* End Date and Time */}
                 <div className="flex gap-4 mt-4">
-                  {/* End Date */}
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-1">End Date</label>
                     <Input
@@ -327,7 +335,6 @@ const CalendarPage = () => {
                     />
                   </div>
 
-                  {/* End Time */}
                   <div className="flex-1">
                     <label className="block text-sm font-medium mb-1">End Time</label>
                     <Input
@@ -338,7 +345,6 @@ const CalendarPage = () => {
                     />
                   </div>
                 </div>
-
 
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setShowCreateEventDialog(false)}>Cancel</Button>
@@ -351,7 +357,6 @@ const CalendarPage = () => {
           </div>
         )}
 
-        {/* ADDED: Event Detail Dialog */}
         {showEventDetailsDialog && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[101]">
             <div className="bg-white p-6 rounded-lg w-full max-w-md">
@@ -370,10 +375,7 @@ const CalendarPage = () => {
                 <Button variant="outline" onClick={() => setShowEventDetailsDialog(false)}>Close</Button>
                 <Button
                   className="bg-red-200 hover:bg-red-300 text-black"
-                  onClick={() => {
-                    setEvents(events.filter(e => e !== selectedEvent));
-                    setShowEventDetailsDialog(false);
-                  }}
+                  onClick={() => handleDeleteEvent(selectedEvent)}
                 >
                   Delete
                 </Button>
@@ -381,10 +383,8 @@ const CalendarPage = () => {
             </div>
           </div>
         )}
-
       </div>
     </div>
-
   );
 };
 
