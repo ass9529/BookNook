@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, BookOpen, PlusCircle, LockKeyhole, Star } from 'lucide-react';
+import { Bell, BookOpen, PlusCircle, LockKeyhole, Star, Check } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '../src/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../src/components/ui/tabs';
 import { Card, CardContent } from '../src/components/ui/card';
@@ -10,12 +10,14 @@ import { Input } from '../src/components/ui/input';
 import { Textarea } from '../src/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../src/components/ui/dialog';
 import supabase from '../supabaseClient';
+import moment from 'moment';
 
 export default function BookClubsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [clubs, setClubs] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -23,8 +25,6 @@ export default function BookClubsPage() {
   const [joinCode, setJoinCode] = useState('');
   const [user, setUser] = useState(null);
   const [latestDiscussions, setLatestDiscussions] = useState({});
-  
-
 
   useEffect(() => {
     const fetchData = async () => {
@@ -37,70 +37,105 @@ export default function BookClubsPage() {
           return;
         }
         setUser(user);
+        
         await supabase.from('profiles').upsert({
           id: user.id,
           email: user.email,
           username: user.user_metadata?.username || user.email
         });
-    
-        const [notificationsRes, { data: clubsData }] = await Promise.all([
-          supabase
+
+        // Fetch notifications for the user
+        const fetchNotifications = async () => {
+          const { data, error } = await supabase
             .from('notifications')
             .select('*')
             .eq('user_id', user.id)
-            .limit(5),
-            
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+          if (error) throw error;
+
+          setNotifications(data || []);
+          setUnreadCount(data.filter(n => !n.is_read).length);
+        };
+
+        // Set up real-time notifications
+        const setupRealtime = () => {
+          return supabase
+            .channel('notifications')
+            .on(
+              'postgres_changes',
+              {
+                event: '*',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+              },
+              (payload) => {
+                if (payload.eventType === 'INSERT') {
+                  setNotifications(prev => [payload.new, ...prev]);
+                  setUnreadCount(prev => prev + 1);
+                }
+              }
+            )
+            .subscribe();
+        };
+
+        const [clubsRes] = await Promise.all([
           supabase
             .from('club_members')
             .select('club:clubs(*)')
-            .eq('user_id', user.id)
+            .eq('user_id', user.id),
+          fetchNotifications()
         ]);
-    
-        if (notificationsRes.error) throw notificationsRes.error;
-    
-        setNotifications(notificationsRes.data || []);
-    
+
+        const subscription = setupRealtime();
+
         // Get all club IDs
-        const clubIds = clubsData?.map(m => m.club.id) || [];
-    
+        const clubIds = clubsRes.data?.map(m => m.club.id) || [];
+
         // Fetch all club members for these clubs
         const { data: allMembers, error: membersError } = await supabase
           .from('club_members')
           .select('club_id')
           .in('club_id', clubIds);
-    
+
         if (membersError) throw membersError;
-    
+
         // Count members per club
         const memberCounts = allMembers.reduce((acc, { club_id }) => {
           acc[club_id] = (acc[club_id] || 0) + 1;
           return acc;
         }, {});
-    
+
         // Add member_count to each club
-        const userClubs = clubsData?.map(m => ({
+        const userClubs = clubsRes.data?.map(m => ({
           ...m.club,
           member_count: memberCounts[m.club.id] || 0
         })) || [];
-    
+
         setClubs(userClubs);
-    
+
         // Fetch latest discussions
         const { data: discussionsData } = await supabase
           .from('discussions')
           .select('*')
           .in('club_id', clubIds)
           .order('created_at', { ascending: false });
-    
+
         const latest = discussionsData?.reduce((acc, discussion) => {
           if (!acc[discussion.club_id]) {
             acc[discussion.club_id] = discussion;
           }
           return acc;
         }, {});
-    
+
         setLatestDiscussions(latest || {});
-    
+
+        return () => {
+          supabase.removeChannel(subscription);
+        };
+
       } catch (err) {
         setError(err.message);
       } finally {
@@ -110,6 +145,46 @@ export default function BookClubsPage() {
 
     fetchData();
   }, [router]);
+
+  const markAsRead = async (id) => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      return;
+    }
+
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, is_read: true } : n))
+    );
+    setUnreadCount(prev => prev - 1);
+  };
+
+  const markAllAsRead = async () => {
+    const unreadIds = notifications
+      .filter(n => !n.is_read)
+      .map(n => n.id);
+
+    if (unreadIds.length === 0) return;
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .in('id', unreadIds);
+
+    if (error) {
+      console.error('Error marking notifications as read:', error);
+      return;
+    }
+
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true }))
+    );
+    setUnreadCount(0);
+  };
 
   if (loading) {
     return (
@@ -136,7 +211,6 @@ export default function BookClubsPage() {
         </Alert>
       </div>
     );
-
   }
 
   const handleCreateClub = async () => {
@@ -246,18 +320,55 @@ export default function BookClubsPage() {
       <h1 className="text-3xl font-bold mb-8">Welcome! Check out what's new!</h1>
       
       <section className="mb-12">
-        <div className="flex items-center gap-2 mb-4">
-          <Bell className="w-5 h-5" />
-          <h2 className="text-2xl font-semibold">Notifications</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Bell className="w-5 h-5" />
+            <h2 className="text-2xl font-semibold">Notifications</h2>
+            {unreadCount > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          {notifications.some(n => !n.is_read) && (
+            <button 
+              onClick={markAllAsRead}
+              className="text-sm text-blue-500 hover:underline"
+            >
+              Mark all as read
+            </button>
+          )}
         </div>
         
         {notifications.length > 0 ? (
-          notifications.map(n => (
-            <Alert key={n.id} className="mb-2">
-              <AlertTitle>{n.title}</AlertTitle>
-              <AlertDescription>{n.description}</AlertDescription>
-            </Alert>
-          ))
+          <div className="space-y-2">
+            {notifications.map(n => (
+              <Alert 
+                key={n.id} 
+                className={`mb-2 ${!n.is_read ? 'bg-blue-50' : ''}`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <AlertTitle>{n.title}</AlertTitle>
+                    <AlertDescription>
+                      {n.description}
+                      <p className="text-xs text-gray-500 mt-1">
+                        {moment(n.created_at).fromNow()}
+                      </p>
+                    </AlertDescription>
+                  </div>
+                  {!n.is_read && (
+                    <button 
+                      onClick={() => markAsRead(n.id)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </Alert>
+            ))}
+          </div>
         ) : (
           <Alert>
             <AlertTitle>No notifications</AlertTitle>

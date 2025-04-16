@@ -11,24 +11,43 @@ import { useParams, useRouter } from 'next/navigation';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
+import { notifyAllClubMembers } from '../../../utils/notifications';
+import { Popover, PopoverContent, PopoverTrigger } from '../../../src/components/ui/popover';
+import { Calendar as DatePicker } from '../../../src/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../src/components/ui/select';
 
 import supabase from '../../../supabaseClient';
 
 const header2Font = Baloo_2({ weight: ['800'], subsets: ['latin'] });
 const localizer = momentLocalizer(moment);
+const hours = Array.from({ length: 12 }, (_, i) => i + 1); // 1-12
+const minutes = ['00', '15', '30', '45'];
+const amPm = ['AM', 'PM'];
 
 const CalendarPage = () => {
   const router = useRouter();
   const params = useParams();
   const clubId = params.clubId;
-
   const [newEvent, setNewEvent] = useState({
     title: '',
-    startDate: '',
-    startTime: '',
-    endDate: '',
-    endTime: ''
+    startDate: null,
+    startHour: '12',
+    startMinute: '00',
+    startAmPm: 'PM',
+    endDate: null,
+    endHour: '1',
+    endMinute: '00',
+    endAmPm: 'PM'
   });
+  
+
+  const timeOptions = [];
+  for (let hour = 0; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      timeOptions.push(timeString);
+    }
+  }
 
   const [events, setEvents] = useState([]);
   const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
@@ -98,8 +117,7 @@ const CalendarPage = () => {
 
   const handleSaveUrl = async () => {
     if (!clubData) return;
-
-    console.log('Trying to update club URL:', { clubId, url });
+    const oldUrl = clubData.url;
 
     const { data, error } = await supabase
       .from('clubs')
@@ -115,30 +133,46 @@ const CalendarPage = () => {
 
     setClubData(data);
     setIsEditMode(false);
+
+    if (oldUrl !== url) {
+      await notifyAllClubMembers(
+        clubId,
+        'Meeting URL Updated',
+        `The club meeting URL has been changed to: ${url}`,
+        'url_changed'
+      );
+    }
   };
 
-  const handleAddEvent = async () => {
-    if (
-      !newEvent.title ||
-      !newEvent.startDate || !newEvent.startTime ||
-      !newEvent.endDate || !newEvent.endTime
-    ) return;
 
-    const startDateTimeString = `${newEvent.startDate} ${newEvent.startTime}`;
-    const endDateTimeString = `${newEvent.endDate} ${newEvent.endTime}`;
-    const startDateTime = new Date(startDateTimeString);
-    const endDateTime = new Date(endDateTimeString);
+  const handleAddEvent = async () => {
+    if (!newEvent.title || !newEvent.startDate || !newEvent.endDate) return;
+  
+    // Convert 12-hour time to 24-hour format
+    const startHours24 = newEvent.startAmPm === 'PM' 
+      ? parseInt(newEvent.startHour) % 12 + 12
+      : parseInt(newEvent.startHour) % 12;
+    const endHours24 = newEvent.endAmPm === 'PM' 
+      ? parseInt(newEvent.endHour) % 12 + 12
+      : parseInt(newEvent.endHour) % 12;
+  
+    // Create Date objects with the selected dates and times
+    const startDateTime = new Date(newEvent.startDate);
+    startDateTime.setHours(startHours24, parseInt(newEvent.startMinute));
+    
+    const endDateTime = new Date(newEvent.endDate);
+    endDateTime.setHours(endHours24, parseInt(newEvent.endMinute));
 
     const { data, error } = await supabase
-      .from('event')
-      .insert([{
-        title: newEvent.title,
-        start_date: startDateTime,
-        end_date: endDateTime,
-        user_id: user.id,
-        club_id: clubId
-      }])
-      .select();
+    .from('event')
+    .insert([{
+      title: newEvent.title,
+      start_date: startDateTime,
+      end_date: endDateTime,
+      user_id: user.id,
+      club_id: clubId
+    }])
+    .select();
 
     if (error) {
       console.error('Error adding event:', error);
@@ -153,11 +187,20 @@ const CalendarPage = () => {
       end: new Date(addedEvent.end_date)
     }]);
 
+    // Send notifications
+    await notifyAllClubMembers(
+      clubId,
+      'New Calendar Event',
+      `"${newEvent.title}" scheduled for ${moment(startDateTime).format('MMMM Do YYYY, h:mm A')}`,
+      'event_created'
+    );
+
+    // Reset form
     setNewEvent({
       title: '',
-      startDate: '',
+      startDate: null,
       startTime: '',
-      endDate: '',
+      endDate: null,
       endTime: ''
     });
 
@@ -178,6 +221,217 @@ const CalendarPage = () => {
     setEvents(events.filter(e => e.id !== event.id));
     setShowEventDetailsDialog(false);
   };
+
+  const EventCreationDialog = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+      <div className="bg-white p-6 rounded-lg w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Add New Event</h2>
+          <button
+            onClick={() => setShowCreateEventDialog(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X size={24} />
+          </button>
+        </div>
+  
+        <div className="space-y-4">
+          {/* Event Title */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Event Title</label>
+            <Input
+               value={newEvent.title || ""}
+               onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+               autoFocus
+            />
+          </div>
+  
+          {/* Start Date & Time */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Start Date Picker */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Start Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newEvent.startDate
+                      ? moment(newEvent.startDate).format('MMM DD, YYYY')
+                      : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[110]">
+                  <DatePicker
+                    mode="single"
+                    selected={newEvent.startDate}
+                    onSelect={(date) => setNewEvent({ ...newEvent, startDate: date })}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+  
+            {/* Start Time */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-medium mb-1">Hour</label>
+                <Select
+                  value={newEvent.startHour}
+                  onValueChange={(value) => setNewEvent({ ...newEvent, startHour: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    {hours.map((hour) => (
+                      <SelectItem key={`start-hour-${hour}`} value={hour.toString()}>
+                        {hour}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+  
+              <div>
+                <label className="block text-xs font-medium mb-1">Minute</label>
+                <Select
+                  value={newEvent.startMinute}
+                  onValueChange={(value) => setNewEvent({ ...newEvent, startMinute: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    {minutes.map((minute) => (
+                      <SelectItem key={`start-minute-${minute}`} value={minute}>
+                        {minute}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+  
+              <div>
+                <label className="block text-xs font-medium mb-1">AM/PM</label>
+                <Select
+                  value={newEvent.startAmPm}
+                  onValueChange={(value) => setNewEvent({ ...newEvent, startAmPm: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    {amPm.map((period) => (
+                      <SelectItem key={`start-period-${period}`} value={period}>
+                        {period}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+  
+          {/* End Date & Time */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* End Date Picker */}
+            <div>
+              <label className="block text-sm font-medium mb-1">End Date</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newEvent.endDate
+                      ? moment(newEvent.endDate).format('MMM DD, YYYY')
+                      : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[110]">
+                  <DatePicker
+                    mode="single"
+                    selected={newEvent.endDate}
+                    onSelect={(date) => setNewEvent({ ...newEvent, endDate: date })}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+  
+            {/* End Time */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-medium mb-1">Hour</label>
+                <Select
+                  value={newEvent.endHour}
+                  onValueChange={(value) => setNewEvent({ ...newEvent, endHour: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    {hours.map((hour) => (
+                      <SelectItem key={`end-hour-${hour}`} value={hour.toString()}>
+                        {hour}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+  
+              <div>
+                <label className="block text-xs font-medium mb-1">Minute</label>
+                <Select
+                  value={newEvent.endMinute}
+                  onValueChange={(value) => setNewEvent({ ...newEvent, endMinute: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    {minutes.map((minute) => (
+                      <SelectItem key={`end-minute-${minute}`} value={minute}>
+                        {minute}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+  
+              <div>
+                <label className="block text-xs font-medium mb-1">AM/PM</label>
+                <Select
+                  value={newEvent.endAmPm}
+                  onValueChange={(value) => setNewEvent({ ...newEvent, endAmPm: value })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="--" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    {amPm.map((period) => (
+                      <SelectItem key={`end-period-${period}`} value={period}>
+                        {period}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+  
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="ghost" onClick={() => setShowCreateEventDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddEvent} disabled={!newEvent.title || !newEvent.startDate}>
+              Add Event
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+  
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -287,75 +541,9 @@ const CalendarPage = () => {
           <Plus size={32} />
         </button>
 
-        {showCreateEventDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-            <div className="bg-white p-6 rounded-lg w-full max-w-md">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Add New Event</h2>
-                <button onClick={() => setShowCreateEventDialog(false)} className="text-gray-500 hover:text-gray-700">
-                  <X size={24} />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Event Title</label>
-                  <Input value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })} />
-                </div>
+         {showCreateEventDialog && <EventCreationDialog />}
 
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium mb-1">Start Date</label>
-                    <Input
-                      type="text"
-                      placeholder="MM/DD/YYYY"
-                      value={newEvent.startDate}
-                      onChange={(e) => setNewEvent({ ...newEvent, startDate: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium mb-1">Start Time</label>
-                    <Input
-                      type="text"
-                      placeholder="HH:mm AM/PM"
-                      value={newEvent.startTime}
-                      onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-4 mt-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium mb-1">End Date</label>
-                    <Input
-                      type="text"
-                      placeholder="MM/DD/YYYY"
-                      value={newEvent.endDate}
-                      onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium mb-1">End Time</label>
-                    <Input
-                      type="text"
-                      placeholder="HH:mm AM/PM"
-                      value={newEvent.endTime}
-                      onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowCreateEventDialog(false)}>Cancel</Button>
-                  <Button onClick={handleAddEvent} className="bg-red-200 hover:bg-gray-200 text-black">
-                    Add Event
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+       
 
         {showEventDetailsDialog && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[101]">
