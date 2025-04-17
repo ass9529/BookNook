@@ -10,6 +10,7 @@ import { Baloo_2 } from 'next/font/google';
 import { useParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import supabase from '../../../supabaseClient';
+import { notifyAllClubMembers } from '../../../utils/notifications';
 
 const header2Font = Baloo_2({
   weight: ['800'],
@@ -259,6 +260,14 @@ const handleAddBookFromSearch = async (book) => {
     }
 
     const result = await response.json();
+
+    // Send notifications
+    await notifyAllClubMembers(
+      clubId,
+      'New Book',
+      `New Book, "${book.title}", posted! Time to rate and review`,
+      'discussion_created'
+    );
 
     //after successfully adding book to club, refresh the book list
     window.location.reload();

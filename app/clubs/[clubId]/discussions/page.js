@@ -10,6 +10,7 @@ import { Alert, AlertTitle, AlertDescription } from '../../../src/components/ui/
 import supabase from '../../../supabaseClient';
 import { Baloo_2 } from 'next/font/google';
 import { useParams } from 'next/navigation';
+import { notifyAllClubMembers } from '../../../utils/notifications';
 
 const header2Font = Baloo_2({
   weight: ['800'],
@@ -152,6 +153,14 @@ const DiscussionsPage = () => {
         .select();
 
       if (discussionError) throw discussionError;
+
+      // Send notifications
+      await notifyAllClubMembers(
+        clubId,
+        'New Discussion',
+        `New discussion, "${newDiscussion.title}", posted! Come share your thoughts`,
+        'discussion_created'
+      );
 
       // Refresh discussions with club filter
       const { data: refreshedDiscussions } = await supabase
