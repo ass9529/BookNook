@@ -25,6 +25,7 @@ export default function BookClubsPage() {
   const [joinCode, setJoinCode] = useState('');
   const [user, setUser] = useState(null);
   const [latestDiscussions, setLatestDiscussions] = useState({});
+  const [showReadNotifications, setShowReadNotifications] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -330,49 +331,63 @@ export default function BookClubsPage() {
               </span>
             )}
           </div>
-          {notifications.some(n => !n.is_read) && (
-            <button 
-              onClick={markAllAsRead}
-              className="text-sm text-blue-500 hover:underline"
-            >
-              Mark all as read
-            </button>
-          )}
+          <div className="flex gap-4">
+            {notifications.some(n => !n.is_read) && (
+              <button 
+                onClick={markAllAsRead}
+                className="text-sm text-blue-500 hover:underline"
+              >
+                Mark all as read
+              </button>
+            )}
+            {notifications.some(n => n.is_read) && (
+              <button 
+                onClick={() => setShowReadNotifications(!showReadNotifications)}
+                className="text-sm text-blue-500 hover:underline"
+              >
+                {showReadNotifications ? 'Hide read' : 'Show read'}
+              </button>
+            )}
+          </div>
         </div>
         
-        {notifications.length > 0 ? (
+        {notifications.filter(n => showReadNotifications || !n.is_read).length > 0 ? (
           <div className="space-y-2">
-            {notifications.map(n => (
-              <Alert 
-                key={n.id} 
-                className={`mb-2 ${!n.is_read ? 'bg-blue-50' : ''}`}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <AlertTitle>{n.title}</AlertTitle>
-                    <AlertDescription>
-                      {n.description}
-                      <p className="text-xs text-gray-500 mt-1">
-                        {moment(n.created_at).fromNow()}
-                      </p>
-                    </AlertDescription>
+            {notifications
+              .filter(n => showReadNotifications || !n.is_read)
+              .map(n => (
+                <Alert 
+                  key={n.id} 
+                  className={`mb-2 ${!n.is_read ? 'bg-blue-50' : ''}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <AlertTitle>{n.title}</AlertTitle>
+                      <AlertDescription>
+                        {n.description}
+                        <p className="text-xs text-gray-500 mt-1">
+                          {moment(n.created_at).fromNow()}
+                        </p>
+                      </AlertDescription>
+                    </div>
+                    {!n.is_read && (
+                      <button 
+                        onClick={() => markAsRead(n.id)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
-                  {!n.is_read && (
-                    <button 
-                      onClick={() => markAsRead(n.id)}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </Alert>
-            ))}
+                </Alert>
+              ))}
           </div>
         ) : (
           <Alert>
             <AlertTitle>No notifications</AlertTitle>
-            <AlertDescription>You're all caught up!</AlertDescription>
+            <AlertDescription>
+              {showReadNotifications ? 'You have no notifications' : 'You have no unread notifications'}
+            </AlertDescription>
           </Alert>
         )}
       </section>
