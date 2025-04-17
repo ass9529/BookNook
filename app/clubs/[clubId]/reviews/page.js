@@ -17,6 +17,10 @@ const header2Font = Baloo_2({
   subsets: ['latin'],
 });
 
+// Define a placeholder image as an inline SVG or base64 data URL
+// Define a placeholder image as an inline SVG with improved styling and text
+const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f0f0f0' stroke='%23cccccc' stroke-width='2'/%3E%3Cpath d='M15,20 L85,20 L85,130 L15,130 Z' fill='%23e0e0e0' stroke='%23bbbbbb'/%3E%3Ctext x='50' y='80' font-family='Arial' font-size='12' font-weight='bold' text-anchor='middle' fill='%23888888'%3ECover%3C/text%3E%3Ctext x='50' y='95' font-family='Arial' font-size='10' text-anchor='middle' fill='%23888888'%3EUnavailable%3C/text%3E%3C/svg%3E";
+
 const ReviewsPage = () => { 
   const router = useRouter();  
   const params = useParams();
@@ -34,6 +38,7 @@ const ReviewsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isHost, setIsHost] = useState(false);
 
   // Sample data
   useEffect(() => {
@@ -62,6 +67,18 @@ const ReviewsPage = () => {
         username: profileData.username,
         photo_url: profileData.photo_url,
       });
+
+      //check if user is host of this club
+      const { data: clubData, error: clubError } = await supabase
+        .from('clubs')
+        .select('owner_id')
+        .eq('id', clubId)
+        .single();
+
+        if (clubError) throw clubError;
+
+        //set isHost state based on whether current user is the club owner
+        setIsHost(user.id === clubData.owner_id);
 
         //fetch books for this club
         const { data: clubBooksData, error: booksError } = await supabase
@@ -221,7 +238,7 @@ const ReviewsPage = () => {
         id: item.id,
         title: item.volumeInfo.title,
         author: authorString,
-        thumbnail: item.volumeInfo.imageLinks?.thumbnail || '/book-covers/placeholder.jpg',
+        thumbnail: item.volumeInfo.imageLinks?.thumbnail || placeholderImage,
       };
     }) || [];
 
@@ -236,6 +253,12 @@ const ReviewsPage = () => {
 
 const handleAddBookFromSearch = async (book) => {
   try{
+    //prevent non-hosts from adding books
+    if (!isHost) {
+      setError('Only the host can add books to the club.');
+      return;
+    }
+
     const bookDetails = {
       id: book.id,
       title: book.title,
@@ -624,7 +647,7 @@ return (
                 <CardContent className="p-6">
                   <div className="flex flex-col items-center">
                     <img 
-                      src={book.image_url || '/book-covers/placeholder.jpg'} 
+                      src={book.image_url || placeholderImage} 
                       alt={book.title} 
                       className="w-32 h-48 object-cover rounded-lg mb-4" 
                     />
@@ -646,7 +669,7 @@ return (
         </div>
       )}
 
-      {!selectedBook && (
+      {!selectedBook && isHost && (
         <button
           onClick={() => setShowCreateBookDialog(true)}
           className="fixed bottom-8 right-8 w-16 h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
@@ -700,17 +723,19 @@ return (
           <div className="space-y-4 mt-4">
             {searchResults.map(book => (
               <div key={book.id} className="border rounded-lg p-3 flex gap-3">
-                <img 
-                  src={book.thumbnail} 
-                  alt={book.title}
-                  className="w-16 h-24 object-cover rounded"
-                  onError={(e) => e.target.src = '/book-covers/placeholder.jpg'}
-                />
-                <div className="flex-1">
-                  <h4 className="font-medium">{book.title}</h4>
-                  <p className="text-sm text-gray-600">{book.author}</p>
+                <div className="w-16 h-24 flex-shrink-0">
+                  <img 
+                    src={book.thumbnail} 
+                    alt={book.title}
+                    className="w-16 h-24 object-cover rounded"
+                    onError={(e) => e.target.src = placeholderImage} // Fallback to placeholder image
+                  />
+                </div>
+                <div className="flex-1 flex flex-col justify-between">
+                  <h4 className="font-medium line-clamp-2">{book.title}</h4>
+                  <p className="text-sm text-gray-600 line-clamp-1">{book.author}</p>
                   <Button 
-                    className="mt-2"
+                    className="w-fit mt-2"
                     onClick={() => handleAddBookFromSearch(book)}
                   >
                     Add to Club
