@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation'; 
-import { BookOpen, Trash2, Crown } from 'lucide-react';
+import { BookOpen, Trash2, Crown, MoreVertical, Shield, ShieldOff } from 'lucide-react';
 import supabase from '../../../supabaseClient'; 
 import { Baloo_2, Pacifico } from 'next/font/google';
 
@@ -11,15 +11,17 @@ const header2Font = Baloo_2({ weight: ['800'], subsets: ['latin'] });
 const footerFont = Pacifico({ weight: '400', subsets: ['latin'] });
 
 const BookClubsPage = () => {  
-  const router = useRouter();  
+  const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isHost, setIsHost] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [clubHostId, setClubHostId] = useState(null);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedNewHost, setSelectedNewHost] = useState('');
+  const [activeMemberMenu, setActiveMemberMenu] = useState(null);
   const { clubId } = useParams();
 
   useEffect(() => {
@@ -28,22 +30,35 @@ const BookClubsPage = () => {
       if (data.user) {
         setIsLoggedIn(true);
         setCurrentUserId(data.user.id);
-        checkIfHost(data.user.id);
+        checkUserRole(data.user.id);
       }
     }
     checkLogin();
   }, []);
 
-  const checkIfHost = async (userId) => {
-    const { data, error } = await supabase
+  const checkUserRole = async (userId) => {
+    // Get club host
+    const { data: clubData } = await supabase
       .from('clubs')
       .select('owner_id')
       .eq('id', clubId)
       .single();
 
-    if (!error && data) {
-      setClubHostId(data.owner_id);
-      setIsHost(data.owner_id === userId);
+    if (clubData) {
+      setClubHostId(clubData.owner_id);
+      setIsHost(clubData.owner_id === userId);
+    }
+
+    // Check if user is admin
+    const { data: memberData } = await supabase
+      .from('club_members')
+      .select('role')
+      .eq('club_id', clubId)
+      .eq('user_id', userId)
+      .single();
+
+    if (memberData && (memberData.role === 'admin' || clubData.owner_id === userId)) {
+      setIsAdmin(true);
     }
   };
 
@@ -55,6 +70,7 @@ const BookClubsPage = () => {
         .from('club_members')
         .select(`
           user_id,
+          role,
           profiles (
             username
           )
@@ -75,7 +91,10 @@ const BookClubsPage = () => {
   }, [clubId]);
 
   const handleKickMember = async (userId) => {
-    if (!isHost) return;
+    if (!(isHost || isAdmin) || userId === clubHostId) {
+      alert('You cannot remove the host');
+      return;
+    }
     
     if (window.confirm('Are you sure you want to remove this member?')) {
       const { error } = await supabase
@@ -92,26 +111,83 @@ const BookClubsPage = () => {
     }
   };
 
+  const handlePromoteDemote = async (userId, currentRole) => {
+    if (!isHost) return;
+    
+    const newRole = currentRole === 'admin' ? 'member' : 'admin';
+    
+    const { error } = await supabase
+      .from('club_members')
+      .update({ role: newRole })
+      .eq('club_id', clubId)
+      .eq('user_id', userId);
+
+    if (!error) {
+      setMembers(members.map(member => 
+        member.user_id === userId 
+          ? { ...member, role: newRole } 
+          : member
+      ));
+    } else {
+      console.error('Failed to update role:', error.message);
+    }
+    setActiveMemberMenu(null);
+  };
+
   const handleTransferOwnership = async () => {
     if (!isHost || !selectedNewHost) return;
 
     if (window.confirm(`Are you sure you want to transfer ownership to this member?`)) {
-      // Update club host in clubs table
-      const { error: clubUpdateError } = await supabase
-        .from('clubs')
-        .update({ owner_id: selectedNewHost })
-        .eq('id', clubId);
+      try {
+        // Update club host in clubs table
+        const { error: clubUpdateError } = await supabase
+          .from('clubs')
+          .update({ owner_id: selectedNewHost })
+          .eq('id', clubId);
 
-      if (clubUpdateError) {
-        console.error('Failed to transfer ownership:', clubUpdateError.message);
-        return;
+        if (clubUpdateError) throw clubUpdateError;
+
+        // Update the previous host's role to admin
+        const { error: memberUpdateError } = await supabase
+          .from('club_members')
+          .update({ role: 'admin' })
+          .eq('club_id', clubId)
+          .eq('user_id', currentUserId);
+
+        if (memberUpdateError) throw memberUpdateError;
+
+        // Update the new host's role
+        const { error: newHostUpdateError } = await supabase
+          .from('club_members')
+          .update({ role: 'host' })
+          .eq('club_id', clubId)
+          .eq('user_id', selectedNewHost);
+
+        if (newHostUpdateError) throw newHostUpdateError;
+
+        // Update local state
+        setClubHostId(selectedNewHost);
+        setIsHost(false);
+        setIsAdmin(true);
+        setShowTransferModal(false);
+        setSelectedNewHost('');
+        
+        // Refresh members list
+        const { data } = await supabase
+          .from('club_members')
+          .select(`
+            user_id,
+            role,
+            profiles (
+              username
+            )
+          `)
+          .eq('club_id', clubId);
+
+        setMembers(data || []);
+      } catch (error) {
+        console.error('Failed to transfer ownership:', error.message);
       }
-
-      // Update local state
-      setClubHostId(selectedNewHost);
-      setIsHost(false);
-      setShowTransferModal(false);
-      setSelectedNewHost('');
     }
   };
 
@@ -170,44 +246,98 @@ const BookClubsPage = () => {
                 </button>
               </div>
             )}
-          </div>
-
-          <div className="shadow-lg border bg-white rounded-lg pt-6 px-6 h-auto min-h-[12rem]">
-            {loading ? (
-              <p className="text-gray-600">Loading members...</p>
-            ) : members.length === 0 ? (
-              <p className="text-gray-600">No members have joined this club yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {members.map((member, index) => (
-                  <li
-                    key={index}
-                    className="p-3 bg-gray-100 rounded-lg shadow-sm border text-gray-800 flex justify-between items-center"
-                  >
-                    <div>
-                      {member.profiles?.username || member.user_id}
-                      {member.user_id === clubHostId && (
-                        <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Host
-                        </span>
-                      )}
-                    </div>
-                    {isHost && member.user_id !== currentUserId && (
-                      <button 
-                        onClick={() => handleKickMember(member.user_id)}
-                        className="p-1 rounded hover:bg-gray-200"
-                        title="Remove member"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-600" />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+            {isAdmin && !isHost && (
+              <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-4">
+                Admin
+              </span>
             )}
           </div>
+
+          <div className="shadow-lg border bg-white rounded-lg pt-6 px-6 pb-8 h-auto min-h-[12rem] mb-8">
+          {loading ? (
+            <p className="text-gray-600 py-4">Loading members...</p>
+          ) : members.length === 0 ? (
+            <p className="text-gray-600 py-4">No members have joined this club yet.</p>
+          ) : (
+            <ul className="space-y-2 relative">
+              {members.map((member) => (
+                <li
+                  key={member.user_id}
+                  className="p-3 bg-gray-100 rounded-lg shadow-sm border text-gray-800 flex justify-between items-center relative"
+                >
+                  <div className="flex items-center">
+                    {member.profiles?.username || member.user_id}
+                    {member.user_id === clubHostId ? (
+                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                        Host
+                      </span>
+                    ) : member.role === 'admin' ? (
+                      <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        Admin
+                      </span>
+                    ) : null}
+                  </div>
+                  
+                  {/* Action menu - only show for non-current-user members */}
+                  {(isHost || (isAdmin && member.user_id !== clubHostId)) && member.user_id !== currentUserId && (
+
+                    <div className="relative">
+                      <button 
+                        onClick={() => setActiveMemberMenu(activeMemberMenu === member.user_id ? null : member.user_id)}
+                        className="p-1 rounded hover:bg-gray-200"
+                      >
+                        <MoreVertical className="w-4 h-4 text-gray-600" />
+                      </button>
+                      
+                      {activeMemberMenu === member.user_id && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50 border">
+                          {/* Only host can promote/demote admins */}
+                          {isHost && member.user_id !== clubHostId && (
+                            <button
+                              onClick={() => handlePromoteDemote(member.user_id, member.role)}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              {member.role === 'admin' ? (
+                                <>
+                                  <ShieldOff className="w-4 h-4 mr-2 text-yellow-600" />
+                                  Remove Admin
+                                </>
+                              ) : (
+                                <>
+                                  <Shield className="w-4 h-4 mr-2 text-blue-600" />
+                                  Make Admin
+                                </>
+                              )}
+                            </button>
+                          )}
+                          
+                          {/* Don't show remove option for host */}
+                          {member.user_id !== clubHostId && (
+                            <button
+                              onClick={() => handleKickMember(member.user_id)}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 "
+                            >
+                              <Trash2 className="w-4 h-4 mr-2 text-red-600 " />
+                              Remove Member
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         </section>
       </div>
+      {activeMemberMenu && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setActiveMemberMenu(null)}
+        />
+      )}
 
       {/* Transfer Ownership Modal */}
       {showTransferModal && (
@@ -227,6 +357,7 @@ const BookClubsPage = () => {
                 .map(member => (
                   <option key={member.user_id} value={member.user_id}>
                     {member.profiles?.username || member.user_id}
+                    {member.role === 'admin' && ' (Admin)'}
                   </option>
                 ))}
             </select>
