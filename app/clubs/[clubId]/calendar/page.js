@@ -138,7 +138,7 @@ const CalendarPage = () => {
       await notifyAllClubMembers(
         clubId,
         'Meeting URL Updated',
-        `The club meeting URL has been changed to: ${url}`,
+        `${clubData.name}: The club meeting URL has been changed to: ${url}`,
         'url_changed'
       );
     }
@@ -191,7 +191,7 @@ const CalendarPage = () => {
     await notifyAllClubMembers(
       clubId,
       'New Calendar Event',
-      `"${newEvent.title}" scheduled for ${moment(startDateTime).format('MMMM Do YYYY, h:mm A')}`,
+      `${clubData.name}: "${newEvent.title}" scheduled for ${moment(startDateTime).format('MMMM Do YYYY, h:mm A')}`,
       'event_created'
     );
 
@@ -208,6 +208,13 @@ const CalendarPage = () => {
   };
 
   const handleDeleteEvent = async (event) => {
+    await notifyAllClubMembers(
+      clubId,
+      'Event Canceled',
+      `${clubData.name}: "${event.title}" was cancelled!`,  // Changed from newEvent.title to event.title
+      'event_cancelled'  // Changed type to be more specific
+    );
+
     const { error } = await supabase
       .from('event')
       .delete()

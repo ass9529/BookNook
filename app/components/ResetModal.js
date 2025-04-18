@@ -55,6 +55,7 @@ export default function ResetModal({
                     {/* Form */}
                     <div className="space-y-4">
                         <input
+                            type = "password"
                             placeholder="Enter password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}

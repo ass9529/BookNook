@@ -128,42 +128,36 @@ const ProfilePage = () => {
   }
 
   const handleSave = async () => {
-    if (password) {
-      const { data: authData, error: authError } = await supabase.auth.updateUser({
-        email: email,
-        password: password
-      })
-      console.log("Auth data saved", authData);
+    try {
+      // Update auth user email if it's changed
+      if (email !== userProfile.email) {
+        const { data: authData, error: authError } = await supabase.auth.updateUser({
+          email: email
+        });
+        
+        if (authError) throw authError;
+        console.log("Auth email updated", authData);
+      }
+  
+      // Update profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          username: username,
+          email: email, // This will now match the auth user email
+          bio: bio
+        })
+        .eq('id', userProfile.id)
+        .select()
+        .single();
+  
+      if (profileError) throw profileError;
+  
+      console.log("Profile data saved", profileData);
+      setIsEditing(!isEditing);
+    } catch (error) {
+      console.error('Error updating profile:', error);
     }
-    else {
-      const { data: authData, error: authError } = await supabase.auth.updateUser({
-        email: email
-      })
-      console.log("Auth data saved", authData);
-    }
-
-    // Look here for an example of writing data to Supabase
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles') // Table name
-      .update({
-        username: username,
-        email: email,
-        bio: bio
-      })
-      .eq('id', userProfile.id)
-      .select()
-      .single()
-
-    if (profileError) {
-      console.error('Error updating profile:', profileError)
-      return null
-    }
-
-    console.log("Auth data saved", profileData);
-    setIsEditing(!isEditing)
-  }
-  const handleResetPassword = () => {
-    console.log("Password reset clicked");
   }
 
   return (

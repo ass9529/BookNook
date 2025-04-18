@@ -50,6 +50,8 @@ const DiscussionsPage = () => {
           return;
         }
 
+        
+
         // Fetch club-specific discussions
         const { data: discussionsData, error: discussionsError } = await supabase
           .from('discussions')
@@ -154,11 +156,22 @@ const DiscussionsPage = () => {
 
       if (discussionError) throw discussionError;
 
+      const { data: clubData, error: clubError } = await supabase
+          .from('clubs')
+          .select('*')
+          .eq('id', clubId)
+          .single();
+
+        if (clubError) {
+          console.error('Error fetching club data:', clubError);
+          return;
+        }
+
       // Send notifications
       await notifyAllClubMembers(
         clubId,
         'New Discussion',
-        `New discussion, "${newDiscussion.title}", posted! Come share your thoughts`,
+        `${clubData.name}: New discussion, "${newDiscussion.title}", posted! Come share your thoughts`,
         'discussion_created'
       );
 

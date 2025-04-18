@@ -61,6 +61,7 @@ const ReviewsPage = () => {
         .single();
 
       if(userProfileError) throw userProfileError;
+      
 
       setCurrentUser({
         id: user.id,
@@ -284,11 +285,22 @@ const handleAddBookFromSearch = async (book) => {
 
     const result = await response.json();
 
+    const { data: clubData, error: clubError } = await supabase
+          .from('clubs')
+          .select('*')
+          .eq('id', clubId)
+          .single();
+
+        if (clubError) {
+          console.error('Error fetching club data:', clubError);
+          return;
+        }
+
     // Send notifications
     await notifyAllClubMembers(
       clubId,
       'New Book',
-      `New Book, "${book.title}", posted! Time to rate and review`,
+      `${clubData.name}: New Book, "${book.title}", posted! Time to rate and review`,
       'discussion_created'
     );
 

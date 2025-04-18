@@ -28,6 +28,7 @@ export default function AppNavBar() {
     const router = useRouter();
     const [user, setUser] = useState(null);
     const [username, setUsername] = useState('');
+      const [imageUrl, setImageUrl] = useState('')
 
     useEffect(() => {
         async function fetchData() {
@@ -42,7 +43,7 @@ export default function AppNavBar() {
                 // Fetch user profile from your profiles table
                 const { data: profile, error } = await supabase
                     .from('profiles') 
-                    .select('username')
+                    .select('*')
                     .eq('id', user.id)
                     .single();
                 
@@ -50,6 +51,7 @@ export default function AppNavBar() {
                     console.error('Error fetching profile:', error);
                 } else if (profile) {
                     setUsername(profile.username);
+                    setImageUrl(profile.photo_url);
                 }
             }
         }
@@ -85,11 +87,11 @@ export default function AppNavBar() {
             </nav>
             <div className="w-16 h-16 rounded-full overflow-hidden absolute right-16 transform -translate-y-1/3 top-28">
                 <Image
-                src="/Profile.png"
+                src={imageUrl || "/Profile.png"}
                 alt="Picture of the author"
                 width={200}
                 height={200}
-                className="w-auto h-full object-fill scale-150"
+                className="w-auto h-full object-fill scale-100"
                 />
             </div>
         </header>
