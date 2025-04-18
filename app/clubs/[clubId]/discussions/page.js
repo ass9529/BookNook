@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, ChevronLeft, Plus, X } from 'lucide-react';
+import { MessageSquare, ChevronLeft, Plus, X, Edit, Save, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '../../../src/components/ui/card';
 import { Button } from '../../../src/components/ui/button';
 import { Input } from '../../../src/components/ui/input';
@@ -33,6 +33,15 @@ const DiscussionsPage = () => {
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const [editingDiscussion, setEditingDiscussion] = useState(false);
+  const [editedDiscussion, setEditedDiscussion] = useState({
+    title: '',
+    content: ''
+  });
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editedCommentText, setEditedCommentText] = useState('');
 
   const MAX_TITLE_LENGTH = 100;
   const MAX_CONTENT_LENGTH = 1000;
@@ -50,7 +59,12 @@ const DiscussionsPage = () => {
           return;
         }
 
+<<<<<<< Updated upstream
         
+=======
+        //set current user
+        setCurrentUser(user);
+>>>>>>> Stashed changes
 
         // Fetch club-specific discussions
         const { data: discussionsData, error: discussionsError } = await supabase
@@ -90,7 +104,8 @@ const DiscussionsPage = () => {
               text: comment.content,
               date: new Date(comment.created_at).toLocaleDateString(),
               commenterName: comment.commenter?.username || 'Anonymous',
-              commenterPhoto: comment.commenter?.photo_url || null
+              commenterPhoto: comment.commenter?.photo_url || null,
+              user_id: comment.user_id,
             }))
         }));
 
@@ -203,6 +218,209 @@ const DiscussionsPage = () => {
     }
   };
 
+  const handleEditDiscussion = async () => {
+    try {
+      if (!selectedDiscussion || !currentUser) return;
+
+      //check if user is the author of the discussion]
+      if (selectedDiscussion.user_id !== currentUser.id) {
+        setError('You can only edit your own discussions');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('discussions')
+        .update({
+          title: editedDiscussion.title,
+          content: editedDiscussion.content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedDiscussion.id);
+
+        if (error) throw error;
+
+        //update the discussions state
+        const updatedDiscussions = discussions.map(discussion => 
+          discussion.id === selectedDiscussion.id
+            ? {
+                ...discussion,
+                title: editedDiscussion.title,
+                content: editedDiscussion.content,
+              }
+            : discussion
+        );
+
+        setDiscussions(updatedDiscussions);
+        setEditingDiscussion(false);
+
+      }catch (err) {
+        console.error('Error editing discussion:', err);
+        setError(err.message);
+      }
+    };
+
+  const startEditingDiscussion = () => {
+    if(!selectedDiscussion) return;
+
+    setEditedDiscussion({
+      title: selectedDiscussion.title,
+      content: selectedDiscussion.content
+    });
+
+    setEditingDiscussion(true);
+  };
+
+  const handleEditComment = async (commentId) => {
+    try{
+      if (!selectedDiscussion || !currentUser) return;
+
+      //find the comment to edit
+      const comment = selectedDiscussion.comments.find(c => c.id === commentId);
+
+      //check if user is the author of the comment
+      if (comment.user_id !== currentUser.id) {
+        setError('You can only edit your own comments');
+        return;
+      }
+
+      if(editedCommentText.length > MAX_COMMENT_LENGTH) {
+        setError(`Comment must be less than ${MAX_COMMENT_LENGTH} characters`);
+        return;
+      }
+
+      //update comment in the database
+      const { error } = await supabase
+        .from('comments')
+        .update({
+          content: editedCommentText,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commentId);
+
+        if (error) throw error;
+
+        //update the comments
+        const updatedComments = selectedDiscussion.comments.map(comment =>
+          comment.id === commentId
+            ? { ...comment, text: editedCommentText }
+            : comment
+        );
+
+        //update the discussions array
+        const updatedDiscussions = discussions.map(discussion => 
+          discussion.id === selectedDiscussion.id
+            ? { ...discussion, comments: updatedComments }         
+            : discussion
+        );
+
+        setDiscussions(updatedDiscussions);
+
+        //update the selected discussion
+        const updatedSelectedDiscussion = {
+          ...selectedDiscussion,
+          comments: updatedComments
+        };
+
+        setSelectedDiscussion(updatedSelectedDiscussion);
+        setEditingCommentId(null);
+        setEditedCommentText('');
+
+    } catch (err) {
+      console.error('Error updating comment:', err);
+      setError(err.message);
+    }
+  };
+
+  const startEditingComment = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditedCommentText(comment.text);
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try{
+      if (!selectedDiscussion || !currentUser) return;
+
+      const comment = selectedDiscussion.comments.find(c => c.id === commentId);
+
+      //check if user is the author of the comment
+      if (comment.user_id !== currentUser.id) {
+        setError('You can only delete your own comments');
+        return;
+      }
+
+      //confirm deletion
+      if (!window.confirm('Are you sure you want to delete this comment?')) return;
+
+      //delete comment from the database
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) throw error;
+
+      //remove comments from local state
+      const updatedComments = selectedDiscussion.comments.filter(
+        comment => comment.id !== commentId
+      );
+
+      //update the discussions array
+      const updatedDiscussions = discussions.map(discussion =>
+        discussion.id === selectedDiscussion.id
+          ? { ...discussion, comments: updatedComments }
+          : discussion
+      );
+
+      setDiscussions(updatedDiscussions);
+
+      //update the selected discussion
+      const updatedSelectedDiscussion = {
+        ...selectedDiscussion,
+        comments: updatedComments
+      };
+
+      setSelectedDiscussion(updatedSelectedDiscussion);
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+      setError(err.message);
+    }
+  };
+
+  //function to handle discussion deletion
+  const handleDeleteDiscussion = async () => {
+    try{
+      if (!selectedDiscussion || !currentUser) return;
+
+      //check if user is the author of the discussion
+      if (selectedDiscussion.user_id !== currentUser.id) {
+        setError('You can only delete your own discussions');
+        return;
+      }
+
+      //confirm deletion
+      if (!window.confirm('Are you sure you want to delete this discussion?')) return;
+
+      //delete discussion from the database
+      const { error } = await supabase
+        .from('discussions')
+        .delete()
+        .eq('id', selectedDiscussion.id);
+
+      if (error) throw error;
+
+      //remove discussion from local state
+      const updatedDiscussions = discussions.filter(
+        discussion => discussion.id !== selectedDiscussion.id
+      );
+
+      setDiscussions(updatedDiscussions);
+      setSelectedDiscussion(null);
+    } catch (err) {
+      console.error('Error deleting discussion:', err);
+      setError(err.message);
+    }
+  };
+
   if (!clubId) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -263,7 +481,8 @@ const DiscussionsPage = () => {
                 text: comment.content,
                 date: new Date(comment.created_at).toLocaleDateString(),
                 commenterName: comment.commenter?.username || 'Anonymous',
-                commenterPhoto: comment.commenter?.photo_url || null
+                commenterPhoto: comment.commenter?.photo_url || null,
+                user_id: comment.user_id
               }))
             }
           : discussion
@@ -344,13 +563,41 @@ const DiscussionsPage = () => {
       <div className="ml-72 p-8 w-full">
         <h1 className={`text-3xl font-bold text-black mb-8 ${header2Font.className}`}>
           {selectedDiscussion ? (
+            <div className="flex justify-between items-center">
             <button 
-              onClick={() => setSelectedDiscussion(null)} 
-              className="flex items-center gap-2 text-black hover:text-gray-600"
-            >
-              <ChevronLeft size={24} />
-              {selectedDiscussion.title}
+                onClick={() => {
+                  setEditingDiscussion(false);
+                  setSelectedDiscussion(null);
+                }}
+                className="flex items-center gap-2 text-black hover:text-gray-600"
+              >
+                <ChevronLeft size={24} />
+                {editingDiscussion ? 'Editing: ' + selectedDiscussion.title : selectedDiscussion.title}
             </button>
+            {/* only show edit/delete buttons if user is the author */}
+            {currentUser && selectedDiscussion.user_id === currentUser.id && !editingDiscussion && (
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={startEditingDiscussion}
+                  className="flex items-center gap-1"
+                >
+                  <Edit size={16} />
+                  Edit
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={handleDeleteDiscussion}
+                  className="flex items-center gap-1"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </Button>
+              </div>
+            )}
+          </div>
           ) : (
             "Community Discussions"
           )}
@@ -360,30 +607,79 @@ const DiscussionsPage = () => {
           <div className="space-y-6">
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center gap-4 mb-4">
-                  {selectedDiscussion.authorPhoto && (
+                {editingDiscussion ? (
+                  //editing form for discussion  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Title</label>
+                      <Input
+                        value={editedDiscussion.title}
+                        onChange={(e) => setEditedDiscussion({...editedDiscussion, title: e.target.value})}
+                        maxLength={MAX_TITLE_LENGTH}
+                        placeholder="Enter discussion title"
+                      />
+                      <p className="text-sm text-gray-500 text-right">
+                        {editedDiscussion.title.length}/{MAX_TITLE_LENGTH}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Description</label>
+                      <Textarea
+                        value={editedDiscussion.content}
+                        onChange={(e) => setEditedDiscussion({...editedDiscussion, content: e.target.value})}
+                        maxLength={MAX_CONTENT_LENGTH}
+                        placeholder="Enter discussion content"
+                        rows={5}
+                      />
+                      <p className="text-sm text-gray-500 text-right">
+                        {editedDiscussion.content.length}/{MAX_CONTENT_LENGTH}
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-4">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setEditingDiscussion(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleEditDiscussion}
+                        disabled={!editedDiscussion.title || !editedDiscussion.content}
+                      >
+                        Save Changes
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                 <>
+                  <div className="flex items-center gap-4 mb-4">
+                    {selectedDiscussion.authorPhoto && (
+                      <img 
+                        src={selectedDiscussion.authorPhoto} 
+                        alt={selectedDiscussion.authorName}
+                        className="w-10 h-10 rounded-full"
+                      />
+                    )}
+                    <div>
+                      <p className="font-medium">{selectedDiscussion.authorName}</p>
+                      <p className="text-sm text-gray-500">
+                        Posted on {new Date(selectedDiscussion.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2">{selectedDiscussion.title}</h2>
+                  {selectedDiscussion.image_url && (
                     <img 
-                      src={selectedDiscussion.authorPhoto} 
-                      alt={selectedDiscussion.authorName}
-                      className="w-10 h-10 rounded-full"
+                      src={selectedDiscussion.image_url} 
+                      alt={selectedDiscussion.title}
+                      className="max-w-full h-auto rounded-lg mb-4"
                     />
                   )}
-                  <div>
-                    <p className="font-medium">{selectedDiscussion.authorName}</p>
-                    <p className="text-sm text-gray-500">
-                      Posted on {new Date(selectedDiscussion.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <h2 className="text-2xl font-bold mb-2">{selectedDiscussion.title}</h2>
-                {selectedDiscussion.image_url && (
-                  <img 
-                    src={selectedDiscussion.image_url} 
-                    alt={selectedDiscussion.title}
-                    className="max-w-full h-auto rounded-lg mb-4"
-                  />
+                  <p className="text-gray-700 whitespace-pre-line">{selectedDiscussion.content}</p>
+                </>
                 )}
-                <p className="text-gray-700 whitespace-pre-line">{selectedDiscussion.content}</p>
               </CardContent>
             </Card>
 
@@ -425,22 +721,83 @@ const DiscussionsPage = () => {
                   {selectedDiscussion.comments.map(comment => (
                     <Card key={comment.id}>
                       <CardContent className="p-4">
-                        <div className="flex items-center gap-4">
-                          {comment.commenterPhoto && (
-                            <img 
-                              src={comment.commenterPhoto} 
-                              alt={comment.commenterName}
-                              className="w-8 h-8 rounded-full"
+                        {editingCommentId === comment.id ? (
+                          //edit form for comment
+                          <div className="space-y-3">
+                            <Textarea
+                              value={editedCommentText}
+                              onChange={(e) => setEditedCommentText(e.target.value)}
+                              maxLength={MAX_COMMENT_LENGTH}
+                              rows={3}
                             />
-                          )}
-                          <div className="flex-1">
-                            <div className="flex justify-between">
-                              <p className="font-medium">{comment.commenterName}</p>
-                              <span className="text-sm text-gray-500">{comment.date}</span>
+                            <p className="text-sm text-gray-500 text-right">
+                              {editedCommentText.length}/{MAX_COMMENT_LENGTH}
+                            </p>
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingCommentId(null);
+                                  setEditedCommentText('');
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button 
+                                size="sm"
+                                onClick={() => handleEditComment(comment.id)}
+                                disabled={!editedCommentText.trim()}
+                              >
+                                <Save size={16} className="mr-1" />
+                                Save
+                              </Button>
                             </div>
-                            <p className="text-gray-700 mt-1">{comment.text}</p>
                           </div>
-                        </div>
+                        ) : (
+                          // Regular comment view
+                          <div className="flex items-center gap-4">
+                            <div className="flex-shrink-0">
+                              {comment.commenterPhoto && (
+                                <img 
+                                  src={comment.commenterPhoto} 
+                                  alt={comment.commenterName}
+                                  className="w-8 h-8 rounded-full"
+                                />
+                              )}
+                            </div>
+                            <div className="flex-grow">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-medium">{comment.commenterName}</p>
+                                  <span className="text-sm text-gray-500">{comment.date}</span>
+                                </div>
+                                {/* Only show for user's own comments */}
+                                {currentUser && comment.user_id === currentUser.id && (
+                                  <div className="flex gap-2 ml-2">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => startEditingComment(comment)}
+                                      className="h-8 px-2"
+                                    >
+                                      <Edit size={16} />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => handleDeleteComment(comment.id)}
+                                      className="h-8 px-2 text-red-500 hover:text-red-700"
+                                    >
+                                      <Trash2 size={16} />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-gray-700 mt-1">{comment.text}</p>
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   ))}

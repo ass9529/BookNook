@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { Star, MessageSquare, ChevronLeft, Plus, X } from 'lucide-react';
+import { Star, MessageSquare, ChevronLeft, Plus, X, Edit, Save, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '../../../src/components/ui/card';
 import { Button } from '../../../src/components/ui/button';
 import { Input } from '../../../src/components/ui/input';
@@ -17,7 +17,6 @@ const header2Font = Baloo_2({
   subsets: ['latin'],
 });
 
-// Define a placeholder image as an inline SVG or base64 data URL
 // Define a placeholder image as an inline SVG with improved styling and text
 const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f0f0f0' stroke='%23cccccc' stroke-width='2'/%3E%3Cpath d='M15,20 L85,20 L85,130 L15,130 Z' fill='%23e0e0e0' stroke='%23bbbbbb'/%3E%3Ctext x='50' y='80' font-family='Arial' font-size='12' font-weight='bold' text-anchor='middle' fill='%23888888'%3ECover%3C/text%3E%3Ctext x='50' y='95' font-family='Arial' font-size='10' text-anchor='middle' fill='%23888888'%3EUnavailable%3C/text%3E%3C/svg%3E";
 
@@ -29,7 +28,6 @@ const ReviewsPage = () => {
   const [showCreateBookDialog, setShowCreateBookDialog] = useState(false);
   const [showCreateReviewDialog, setShowCreateReviewDialog] = useState(false);
   const [newReview, setNewReview] = useState({ content: '', rating: 0 });
-  const [review, setReviewError] = useState(null);
   const [newComment, setNewComment] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -39,6 +37,15 @@ const ReviewsPage = () => {
   const [error, setError] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isHost, setIsHost] = useState(false);
+  
+  // States for editing functionality
+  const [editingReviewId, setEditingReviewId] = useState(null);
+  const [editedReview, setEditedReview] = useState({
+    content: '',
+    rating: 0
+  });
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editedCommentText, setEditedCommentText] = useState('');
 
   // Sample data
   useEffect(() => {
@@ -156,6 +163,7 @@ const ReviewsPage = () => {
                   commenterPhoto: comment.user.photo_url,
                   content: comment.content,
                   created_at: comment.created_at,
+                  user_id: comment.user_id // Store user_id for permission checking
                 }));
 
               return {
@@ -165,7 +173,8 @@ const ReviewsPage = () => {
                 content: review.review_text,
                 rating: review.rating,
                 created_at: review.created_at,
-                comments: reviewComments
+                comments: reviewComments,
+                user_id: review.user_id // Store user_id for permission checking
               };
 
             });
@@ -207,7 +216,19 @@ const ReviewsPage = () => {
     ));
   };
 
-  //ENTER NEW FUNCTIONS HERE
+  // Function to render editable stars for review editing
+  const renderEditableStars = (rating, onRatingChange) => {
+    return [...Array(5)].map((_, i) => (
+      <button
+        key={i}
+        type="button"
+        onClick={() => onRatingChange(i + 1)}
+        className={`p-1 ${i < rating ? 'text-yellow-400' : 'text-gray-300'}`}
+      >
+        <Star size={24} fill={i < rating ? 'currentColor' : 'none'} />
+      </button>
+    ));
+  };
 
   const handleBookSearch = async () => {
     if(!searchQuery.trim()) return;
@@ -319,8 +340,6 @@ const handleAddBookFromSearch = async (book) => {
 
   const handleCreateReview = async() => {
     try {
-      setReviewError(null);
-
       if (!selectedBook) return;
       
       // Get current authenticated user
@@ -358,7 +377,8 @@ const handleAddBookFromSearch = async (book) => {
         content: newReview.content,
         rating: newReview.rating,
         created_at: reviewData[0].created_at,
-        comments: []
+        comments: [],
+        user_id: user.id // Add user_id for permission checking
       };
 
       // Update the books state with the new review
@@ -387,6 +407,83 @@ const handleAddBookFromSearch = async (book) => {
       console.error('Error creating review:', err);
       setError(err.message);
     }
+  };
+
+  // Function to handle editing a review
+  const handleEditReview = async (reviewId) => {
+    try {
+      if (!selectedBook || !currentUser) return;
+
+      // Find the review
+      const review = selectedBook.reviews.find(r => r.id === reviewId);
+      
+      // Check if user is the author of the review
+      if (review.user_id !== currentUser.id) {
+        setError("You can only edit your own reviews");
+        return;
+      }
+
+      // Update review in the database
+      const { error } = await supabase
+        .from('reviews')
+        .update({
+          review_text: editedReview.content,
+          rating: editedReview.rating,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reviewId);
+
+      if (error) throw error;
+
+      // Update reviews in local state
+      const updatedReviews = selectedBook.reviews.map(review => 
+        review.id === reviewId
+          ? { 
+              ...review, 
+              content: editedReview.content, 
+              rating: editedReview.rating 
+            }
+          : review
+      );
+
+      // Recalculate average rating
+      const totalRating = updatedReviews.reduce((sum, review) => sum + review.rating, 0);
+      const averageRating = updatedReviews.length > 0 ? totalRating / updatedReviews.length : 0;
+
+      // Update the books state
+      const updatedBooks = books.map(book => 
+        book.id === selectedBook.id
+          ? { 
+              ...book, 
+              reviews: updatedReviews,
+              averageRating
+            }
+          : book
+      );
+
+      setBooks(updatedBooks);
+      setSelectedBook({
+        ...selectedBook,
+        reviews: updatedReviews,
+        averageRating
+      });
+      
+      setEditingReviewId(null);
+      setEditedReview({ content: '', rating: 0 });
+
+    } catch (err) {
+      console.error('Error updating review:', err);
+      setError(err.message);
+    }
+  };
+
+  // Function to start editing a review
+  const startEditingReview = (review) => {
+    setEditingReviewId(review.id);
+    setEditedReview({
+      content: review.content,
+      rating: review.rating
+    });
   };
 
   const handleAddComment = async(reviewId) => {
@@ -425,7 +522,8 @@ const handleAddBookFromSearch = async (book) => {
         commenter: userData.username,
         commenterPhoto: userData.photo_url,
         content: newComment,
-        created_at: commentData[0].created_at
+        created_at: commentData[0].created_at,
+        user_id: user.id // Add user_id for permission checking
       };
 
       // Update the books state with the new comment
@@ -455,7 +553,196 @@ const handleAddBookFromSearch = async (book) => {
       console.error('Error adding comment:', err);
       setError(err.message);
     }
-};
+  };
+
+  // Function to handle editing a comment
+  const handleEditComment = async (reviewId, commentId) => {
+    try {
+      if (!selectedBook || !currentUser) return;
+
+      // Find the review
+      const review = selectedBook.reviews.find(r => r.id === reviewId);
+      if (!review) return;
+
+      // Find the comment
+      const comment = review.comments.find(c => c.id === commentId);
+      
+      // Check if user is the author of the comment
+      if (comment.user_id !== currentUser.id) {
+        setError("You can only edit your own comments");
+        return;
+      }
+
+      // Update comment in the database
+      const { error } = await supabase
+        .from('review_comments')
+        .update({
+          content: editedCommentText,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commentId);
+
+      if (error) throw error;
+
+      // Update comments in local state
+      const updatedBooks = books.map(book => {
+        if (book.id === selectedBook.id) {
+          return {
+            ...book,
+            reviews: book.reviews.map(rev => {
+              if (rev.id === reviewId) {
+                return {
+                  ...rev,
+                  comments: rev.comments.map(c => 
+                    c.id === commentId
+                      ? { ...c, content: editedCommentText }
+                      : c
+                  )
+                };
+              }
+              return rev;
+            })
+          };
+        }
+        return book;
+      });
+
+      setBooks(updatedBooks);
+      setSelectedBook(updatedBooks.find(b => b.id === selectedBook.id));
+      
+      setEditingCommentId(null);
+      setEditedCommentText('');
+
+    } catch (err) {
+      console.error('Error updating comment:', err);
+      setError(err.message);
+    }
+  };
+
+  // Function to start editing a comment
+  const startEditingComment = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditedCommentText(comment.content);
+  };
+
+  // Function to delete a review
+  const handleDeleteReview = async (reviewId) => {
+    try {
+      if (!selectedBook || !currentUser) return;
+
+      // Find the review
+      const review = selectedBook.reviews.find(r => r.id === reviewId);
+      
+      // Check if user is the author of the review
+      if (review.user_id !== currentUser.id) {
+        setError("You can only delete your own reviews");
+        return;
+      }
+
+      // Confirm deletion
+      if (!window.confirm("Are you sure you want to delete this review? This will also delete all comments.")) {
+        return;
+      }
+
+      // Delete review from the database
+      const { error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId);
+
+      if (error) throw error;
+
+      // Remove review from local state
+      const updatedReviews = selectedBook.reviews.filter(r => r.id !== reviewId);
+      
+      // Recalculate average rating
+      const totalRating = updatedReviews.reduce((sum, review) => sum + review.rating, 0);
+      const averageRating = updatedReviews.length > 0 ? totalRating / updatedReviews.length : 0;
+
+      // Update the books state
+      const updatedBooks = books.map(book => 
+        book.id === selectedBook.id
+          ? { 
+              ...book, 
+              reviews: updatedReviews,
+              totalReviews: updatedReviews.length,
+              averageRating
+            }
+          : book
+      );
+
+      setBooks(updatedBooks);
+      setSelectedBook({
+        ...selectedBook,
+        reviews: updatedReviews,
+        totalReviews: updatedReviews.length,
+        averageRating
+      });
+
+    } catch (err) {
+      console.error('Error deleting review:', err);
+      setError(err.message);
+    }
+  };
+
+  // Function to delete a comment
+  const handleDeleteComment = async (reviewId, commentId) => {
+    try {
+      if (!selectedBook || !currentUser) return;
+
+      // Find the review
+      const review = selectedBook.reviews.find(r => r.id === reviewId);
+      if (!review) return;
+
+      // Find the comment
+      const comment = review.comments.find(c => c.id === commentId);
+      
+      // Check if user is the author of the comment
+      if (comment.user_id !== currentUser.id) {
+        setError("You can only delete your own comments");
+        return;
+      }
+
+      // Confirm deletion
+      if (!window.confirm("Are you sure you want to delete this comment?")) {
+        return;
+      }
+
+      // Delete comment from the database
+      const { error } = await supabase
+        .from('review_comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) throw error;
+
+      // Update comments in local state
+      const updatedBooks = books.map(book => {
+        if (book.id === selectedBook.id) {
+          return {
+            ...book,
+            reviews: book.reviews.map(rev => {
+              if (rev.id === reviewId) {
+                return {
+                  ...rev,
+                  comments: rev.comments.filter(c => c.id !== commentId)
+                };
+              }
+              return rev;
+            })
+          };
+        }
+        return book;
+      });
+
+      setBooks(updatedBooks);
+      setSelectedBook(updatedBooks.find(b => b.id === selectedBook.id));
+
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+      setError(err.message);
+    }
+  };
 
 if (!clubId) {
   return (
@@ -568,7 +855,14 @@ return (
                     <span className="text-gray-500">({selectedBook.totalReviews} reviews)</span>
                   </div>
                 </div>
-                <img src={selectedBook.image_url} alt={selectedBook.title} className="w-32 h-48 object-cover rounded-lg" />
+                <div className="w-32 h-48 flex-shrink-0">
+                  <img 
+                    src={selectedBook.image_url || placeholderImage} 
+                    alt={selectedBook.title} 
+                    className="w-full h-full object-cover rounded-lg"
+                    onError={(e) => { e.target.src = placeholderImage }}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -578,25 +872,91 @@ return (
               selectedBook.reviews.map(review => (
                 <Card key={review.id}>
                   <CardContent className="p-6">
-                    <div className="mb-4">
-                      <div className="flex items-center gap-3">
-                        {review.authorPhoto && (
-                          <img 
-                            src={review.authorPhoto} 
-                            alt={review.author}
-                            className="w-8 h-8 rounded-full" 
+                    {editingReviewId === review.id ? (
+                      // Editing form for review
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Your Rating</label>
+                          <div className="flex gap-1">
+                            {renderEditableStars(editedReview.rating, (rating) => 
+                              setEditedReview({...editedReview, rating})
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Review Content</label>
+                          <Textarea
+                            value={editedReview.content}
+                            onChange={(e) => setEditedReview({...editedReview, content: e.target.value})}
+                            rows={5}
+                            placeholder="Edit your review..."
                           />
-                        )}
-                        <p className="font-medium">{review.author}</p>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => {
+                              setEditingReviewId(null);
+                              setEditedReview({ content: '', rating: 0 });
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={() => handleEditReview(review.id)}
+                            disabled={!editedReview.content || !editedReview.rating}
+                          >
+                            <Save size={16} className="mr-1" />
+                            Save Changes
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 mt-2">
-                        {renderStars(review.rating)}
-                        <span className="text-gray-500 text-sm">
-                          {new Date(review.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-gray-700">{review.content}</p>
+                    ) : (
+                      // Normal review view
+                      <>
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center gap-3">
+                            {review.authorPhoto && (
+                              <img 
+                                src={review.authorPhoto} 
+                                alt={review.author}
+                                className="w-8 h-8 rounded-full" 
+                              />
+                            )}
+                            <p className="font-medium">{review.author}</p>
+                          </div>
+                          
+                          {/* Edit/Delete buttons for review */}
+                          {currentUser && currentUser.id === review.user_id && (
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => startEditingReview(review)}
+                                className="h-8 px-2"
+                              >
+                                <Edit size={16} />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleDeleteReview(review.id)}
+                                className="h-8 px-2 text-red-500 hover:text-red-700"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-2 mb-4">
+                          {renderStars(review.rating)}
+                          <span className="text-gray-500 text-sm">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-gray-700">{review.content}</p>
+                      </>
+                    )}
                     
                     <div className="mt-6 space-y-4">
                       <h4 className="font-medium flex items-center gap-2">
@@ -617,20 +977,79 @@ return (
                       {review.comments.length > 0 ? (
                         review.comments.map(comment => (
                           <div key={comment.id} className="mt-4 pl-4 border-l-2 border-gray-200">
-                            <div className="flex items-center gap-2">
-                              {comment.commenterPhoto && (
-                                <img 
-                                  src={comment.commenterPhoto} 
-                                  alt={comment.commenter}
-                                  className="w-6 h-6 rounded-full" 
+                            {editingCommentId === comment.id ? (
+                              // Editing form for comment
+                              <div className="space-y-3">
+                                <Textarea
+                                  value={editedCommentText}
+                                  onChange={(e) => setEditedCommentText(e.target.value)}
+                                  rows={3}
+                                  placeholder="Edit your comment..."
                                 />
-                              )}
-                              <p className="font-medium">{comment.commenter}</p>
-                              <span className="text-gray-500 text-xs">
-                                {new Date(comment.created_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                            <p className="text-gray-700 mt-1">{comment.content}</p>
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingCommentId(null);
+                                      setEditedCommentText('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button 
+                                    size="sm"
+                                    onClick={() => handleEditComment(review.id, comment.id)}
+                                    disabled={!editedCommentText.trim()}
+                                  >
+                                    <Save size={16} className="mr-1" />
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              // Normal comment view
+                              <>
+                                <div className="flex justify-between items-start">
+                                  <div className="flex items-center gap-2">
+                                    {comment.commenterPhoto && (
+                                      <img 
+                                        src={comment.commenterPhoto} 
+                                        alt={comment.commenter}
+                                        className="w-6 h-6 rounded-full" 
+                                      />
+                                    )}
+                                    <p className="font-medium">{comment.commenter}</p>
+                                    <span className="text-gray-500 text-xs">
+                                      {new Date(comment.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Edit/Delete buttons for comment */}
+                                  {currentUser && currentUser.id === comment.user_id && (
+                                    <div className="flex gap-2 ml-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => startEditingComment(comment)}
+                                        className="h-6 px-2"
+                                      >
+                                        <Edit size={14} />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => handleDeleteComment(review.id, comment.id)}
+                                        className="h-6 px-2 text-red-500 hover:text-red-700"
+                                      >
+                                        <Trash2 size={14} />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-gray-700 mt-1">{comment.content}</p>
+                              </>
+                            )}
                           </div>
                         ))
                       ) : (
@@ -658,16 +1077,21 @@ return (
               >
                 <CardContent className="p-6">
                   <div className="flex flex-col items-center">
-                    <img 
-                      src={book.image_url || placeholderImage} 
-                      alt={book.title} 
-                      className="w-32 h-48 object-cover rounded-lg mb-4" 
-                    />
-                    <h3 className="text-lg font-bold text-center">{book.title}</h3>
-                    <p className="text-gray-600 text-center mb-2">by {book.author}</p>
-                    <div className="flex items-center gap-1">
-                      {renderStars(Math.round(book.averageRating))}
-                      <span className="text-gray-500 text-sm">({book.totalReviews} reviews)</span>
+                    <div className="w-32 h-48 mb-4">
+                      <img 
+                        src={book.image_url || placeholderImage} 
+                        alt={book.title} 
+                        className="w-full h-full object-cover rounded-lg" 
+                        onError={(e) => { e.target.src = placeholderImage }}
+                      />
+                    </div>
+                    <div className="w-full min-h-[80px] flex flex-col items-center">
+                      <h3 className="text-lg font-bold text-center line-clamp-2">{book.title}</h3>
+                      <p className="text-gray-600 text-center mb-2 line-clamp-1">by {book.author}</p>
+                      <div className="flex items-center gap-1">
+                        {renderStars(Math.round(book.averageRating))}
+                        <span className="text-gray-500 text-sm">({book.totalReviews} reviews)</span>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -739,13 +1163,15 @@ return (
                   <img 
                     src={book.thumbnail} 
                     alt={book.title}
-                    className="w-16 h-24 object-cover rounded"
-                    onError={(e) => e.target.src = placeholderImage} // Fallback to placeholder image
+                    className="w-full h-full object-cover rounded"
+                    onError={(e) => { e.target.src = placeholderImage }}
                   />
                 </div>
                 <div className="flex-1 flex flex-col justify-between">
-                  <h4 className="font-medium line-clamp-2">{book.title}</h4>
-                  <p className="text-sm text-gray-600 line-clamp-1">{book.author}</p>
+                  <div>
+                    <h4 className="font-medium line-clamp-2">{book.title}</h4>
+                    <p className="text-sm text-gray-600 line-clamp-1">{book.author}</p>
+                  </div>
                   <Button 
                     className="w-fit mt-2"
                     onClick={() => handleAddBookFromSearch(book)}
