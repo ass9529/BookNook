@@ -43,6 +43,11 @@ const DiscussionsPage = () => {
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editedCommentText, setEditedCommentText] = useState('');
 
+  // State for confirmation dialogs
+  const [showDeleteDiscussionConfirm, setShowDeleteDiscussionConfirm] = useState(false);
+  const [showDeleteCommentConfirm, setShowDeleteCommentConfirm] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+
   const MAX_TITLE_LENGTH = 100;
   const MAX_CONTENT_LENGTH = 1000;
   const MAX_COMMENT_LENGTH = 500;
@@ -59,12 +64,8 @@ const DiscussionsPage = () => {
           return;
         }
 
-<<<<<<< Updated upstream
-        
-=======
         //set current user
         setCurrentUser(user);
->>>>>>> Stashed changes
 
         // Fetch club-specific discussions
         const { data: discussionsData, error: discussionsError } = await supabase
@@ -336,35 +337,46 @@ const DiscussionsPage = () => {
     setEditedCommentText(comment.text);
   };
 
-  const handleDeleteComment = async (commentId) => {
-    try{
+  const handleDeleteComment = (commentId) => {
+    try {
       if (!selectedDiscussion || !currentUser) return;
 
       const comment = selectedDiscussion.comments.find(c => c.id === commentId);
 
-      //check if user is the author of the comment
+      // Check if user is the author of the comment
       if (comment.user_id !== currentUser.id) {
         setError('You can only delete your own comments');
         return;
       }
 
-      //confirm deletion
-      if (!window.confirm('Are you sure you want to delete this comment?')) return;
+      // Show confirmation dialog
+      setCommentToDelete(commentId);
+      setShowDeleteCommentConfirm(true);
+      
+    } catch (err) {
+      console.error('Error preparing to delete comment:', err);
+      setError(err.message);
+    }
+  };
 
-      //delete comment from the database
+  const confirmDeleteComment = async () => {
+    try {
+      if (!commentToDelete) return;
+
+      // Delete comment from the database
       const { error } = await supabase
         .from('comments')
         .delete()
-        .eq('id', commentId);
+        .eq('id', commentToDelete);
 
       if (error) throw error;
 
-      //remove comments from local state
+      // Remove comments from local state
       const updatedComments = selectedDiscussion.comments.filter(
-        comment => comment.id !== commentId
+        comment => comment.id !== commentToDelete
       );
 
-      //update the discussions array
+      // Update the discussions array
       const updatedDiscussions = discussions.map(discussion =>
         discussion.id === selectedDiscussion.id
           ? { ...discussion, comments: updatedComments }
@@ -373,34 +385,49 @@ const DiscussionsPage = () => {
 
       setDiscussions(updatedDiscussions);
 
-      //update the selected discussion
+      // Update the selected discussion
       const updatedSelectedDiscussion = {
         ...selectedDiscussion,
         comments: updatedComments
       };
 
       setSelectedDiscussion(updatedSelectedDiscussion);
+      
+      // Close the confirmation dialog
+      setShowDeleteCommentConfirm(false);
+      setCommentToDelete(null);
+      
     } catch (err) {
       console.error('Error deleting comment:', err);
       setError(err.message);
+      setShowDeleteCommentConfirm(false);
+      setCommentToDelete(null);
     }
   };
 
-  //function to handle discussion deletion
-  const handleDeleteDiscussion = async () => {
-    try{
+  // Function to handle discussion deletion
+  const handleDeleteDiscussion = () => {
+    try {
       if (!selectedDiscussion || !currentUser) return;
 
-      //check if user is the author of the discussion
+      // Check if user is the author of the discussion
       if (selectedDiscussion.user_id !== currentUser.id) {
         setError('You can only delete your own discussions');
         return;
       }
 
-      //confirm deletion
-      if (!window.confirm('Are you sure you want to delete this discussion?')) return;
+      // Show confirmation dialog
+      setShowDeleteDiscussionConfirm(true);
+      
+    } catch (err) {
+      console.error('Error preparing to delete discussion:', err);
+      setError(err.message);
+    }
+  };
 
-      //delete discussion from the database
+  const confirmDeleteDiscussion = async () => {
+    try {
+      // Delete discussion from the database
       const { error } = await supabase
         .from('discussions')
         .delete()
@@ -408,16 +435,21 @@ const DiscussionsPage = () => {
 
       if (error) throw error;
 
-      //remove discussion from local state
+      // Remove discussion from local state
       const updatedDiscussions = discussions.filter(
         discussion => discussion.id !== selectedDiscussion.id
       );
 
       setDiscussions(updatedDiscussions);
       setSelectedDiscussion(null);
+      
+      // Close the confirmation dialog
+      setShowDeleteDiscussionConfirm(false);
+      
     } catch (err) {
       console.error('Error deleting discussion:', err);
       setError(err.message);
+      setShowDeleteDiscussionConfirm(false);
     }
   };
 
@@ -750,7 +782,7 @@ const DiscussionsPage = () => {
                                 disabled={!editedCommentText.trim()}
                               >
                                 <Save size={16} className="mr-1" />
-                                Save
+                                Update Comment
                               </Button>
                             </div>
                           </div>
@@ -951,6 +983,56 @@ const DiscussionsPage = () => {
               disabled={!newDiscussion.title || !newDiscussion.content || uploading}
             >
               {uploading ? 'Posting...' : 'Post Discussion'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+    {/* Delete Discussion Confirmation Dialog */}
+    {showDeleteDiscussionConfirm && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-6 rounded-lg w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4">Delete Discussion</h2>
+          <p className="mb-6">Are you sure you want to delete this discussion? This will also delete all comments.</p>
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteDiscussionConfirm(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDeleteDiscussion}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Delete Comment Confirmation Dialog */}
+    {showDeleteCommentConfirm && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-6 rounded-lg w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4">Delete Comment</h2>
+          <p className="mb-6">Are you sure you want to delete this comment?</p>
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteCommentConfirm(false);
+                setCommentToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDeleteComment}
+            >
+              Delete
             </Button>
           </div>
         </div>

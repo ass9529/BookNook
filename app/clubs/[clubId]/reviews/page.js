@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { Star, MessageSquare, ChevronLeft, Plus, X, Edit, Save, Trash2 } from 'lucide-react';
+import { Star, MessageSquare, ChevronLeft, Plus, X, Edit, Save, Trash2, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '../../../src/components/ui/card';
 import { Button } from '../../../src/components/ui/button';
 import { Input } from '../../../src/components/ui/input';
@@ -16,6 +16,10 @@ const header2Font = Baloo_2({
   weight: ['800'],
   subsets: ['latin'],
 });
+
+// Define character limits
+const MAX_REVIEW_LENGTH = 3000;
+const MAX_COMMENT_LENGTH = 800;
 
 // Define a placeholder image as an inline SVG with improved styling and text
 const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='150' viewBox='0 0 100 150'%3E%3Crect width='100' height='150' fill='%23f0f0f0' stroke='%23cccccc' stroke-width='2'/%3E%3Cpath d='M15,20 L85,20 L85,130 L15,130 Z' fill='%23e0e0e0' stroke='%23bbbbbb'/%3E%3Ctext x='50' y='80' font-family='Arial' font-size='12' font-weight='bold' text-anchor='middle' fill='%23888888'%3ECover%3C/text%3E%3Ctext x='50' y='95' font-family='Arial' font-size='10' text-anchor='middle' fill='%23888888'%3EUnavailable%3C/text%3E%3C/svg%3E";
@@ -46,6 +50,19 @@ const ReviewsPage = () => {
   });
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editedCommentText, setEditedCommentText] = useState('');
+  
+  // State for confirmation dialogs
+  const [showDeleteReviewConfirm, setShowDeleteReviewConfirm] = useState(false);
+  const [reviewToDelete, setReviewToDelete] = useState(null);
+  const [showDeleteCommentConfirm, setShowDeleteCommentConfirm] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+  const [commentParentReviewId, setCommentParentReviewId] = useState(null);
+  
+  // Book dialog error state
+  const [bookDialogError, setBookDialogError] = useState('');
+  
+  // Review dialog error state
+  const [reviewDialogError, setReviewDialogError] = useState('');
 
   // Sample data
   useEffect(() => {
@@ -190,7 +207,9 @@ const ReviewsPage = () => {
               club_book_id: book.club_book_id,
               averageRating,
               totalReviews: bookReviews.length,
-              reviews: bookReviews
+              reviews: bookReviews,
+              // Check if current user has already reviewed this book
+              currentUserReviewed: bookReviews.some(review => review.user_id === user.id)
             }
         });
       
@@ -233,7 +252,10 @@ const ReviewsPage = () => {
   const handleBookSearch = async () => {
     if(!searchQuery.trim()) return;
     
+    // Clear any previous errors
+    setBookDialogError('');
     setSearching(true);
+    
     try{
       const response = await fetch(`/api/searchBooks/route?query=${searchQuery}`);
       if(!response.ok) {
@@ -267,7 +289,7 @@ const ReviewsPage = () => {
     setSearchResults(formattedResults);   
     } catch (error) {
       console.error('Error fetching search results:', error);
-      setError('Failed to search for book. Please try again.');
+      setBookDialogError('Failed to search for book. Please try again.');
     } finally {
       setSearching(false);
     }
@@ -275,9 +297,12 @@ const ReviewsPage = () => {
 
 const handleAddBookFromSearch = async (book) => {
   try{
+    // Clear any previous errors
+    setBookDialogError('');
+    
     //prevent non-hosts from adding books
     if (!isHost) {
-      setError('Only the host can add books to the club.');
+      setBookDialogError('Only the host can add books to the club.');
       return;
     }
 
@@ -301,6 +326,11 @@ const handleAddBookFromSearch = async (book) => {
 
     if(!response.ok) {
       const errorData = await response.json();
+      // Check for a duplicate book error (this depends on your API response)
+      if (errorData.message && errorData.message.includes('already exists')) {
+        setBookDialogError(`"${book.title}" is already in this club's library.`);
+        return;
+      }
       throw new Error(errorData.error || errorData.message || `Failed to add book to club: ${response.status}`)
     }
 
@@ -334,7 +364,7 @@ const handleAddBookFromSearch = async (book) => {
     setSearchResults([]);
   } catch (error) {
     console.error('Error adding book:', error);
-    setError(error.message || 'Failed to add book. Please try again.');
+    setBookDialogError(error.message || 'Failed to add book. Please try again.');
   }
 };
 
@@ -342,11 +372,25 @@ const handleAddBookFromSearch = async (book) => {
     try {
       if (!selectedBook) return;
       
+      // Clear any previous errors
+      setReviewDialogError('');
+      
+      // Validate review content length
+      if (newReview.content.length > MAX_REVIEW_LENGTH) {
+        setReviewDialogError(`Review must be less than ${MAX_REVIEW_LENGTH} characters`);
+        return;
+      }
+      
       // Get current authenticated user
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user || !clubId) return;
 
+      // Check if user has already reviewed this book
+      if (selectedBook.currentUserReviewed) {
+        setReviewDialogError('You have already reviewed this book');
+        return;
+      }
 
       // Add new review to database
       const { data: reviewData, error: reviewError } = await supabase
@@ -392,20 +436,26 @@ const handleAddBookFromSearch = async (book) => {
             ...book,
             reviews: newReviews,
             totalReviews: newReviews.length,
-            averageRating
+            averageRating,
+            currentUserReviewed: true
           };
         }
         return book;
       });
       
       setBooks(updatedBooks);
-      setSelectedBook(updatedBooks.find(b => b.id === selectedBook.id));
+      setSelectedBook({
+        ...selectedBook,
+        reviews: [...selectedBook.reviews, newReviewObj],
+        totalReviews: selectedBook.totalReviews + 1,
+        currentUserReviewed: true
+      });
       setShowCreateReviewDialog(false);
       setNewReview({ content: '', rating: 0 });
       
     } catch (err) {
       console.error('Error creating review:', err);
-      setError(err.message);
+      setReviewDialogError(err.message || 'Failed to create review. Please try again.');
     }
   };
 
@@ -413,6 +463,12 @@ const handleAddBookFromSearch = async (book) => {
   const handleEditReview = async (reviewId) => {
     try {
       if (!selectedBook || !currentUser) return;
+
+      // Validate review content length
+      if (editedReview.content.length > MAX_REVIEW_LENGTH) {
+        setError(`Review must be less than ${MAX_REVIEW_LENGTH} characters`);
+        return;
+      }
 
       // Find the review
       const review = selectedBook.reviews.find(r => r.id === reviewId);
@@ -490,6 +546,12 @@ const handleAddBookFromSearch = async (book) => {
     try {
       if (!newComment.trim() || !selectedBook) return;
       
+      // Validate comment length
+      if (newComment.length > MAX_COMMENT_LENGTH) {
+        setError(`Comment must be less than ${MAX_COMMENT_LENGTH} characters`);
+        return;
+      }
+      
       // Get current authenticated user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -560,6 +622,12 @@ const handleAddBookFromSearch = async (book) => {
     try {
       if (!selectedBook || !currentUser) return;
 
+      // Validate comment length
+      if (editedCommentText.length > MAX_COMMENT_LENGTH) {
+        setError(`Comment must be less than ${MAX_COMMENT_LENGTH} characters`);
+        return;
+      }
+
       // Find the review
       const review = selectedBook.reviews.find(r => r.id === reviewId);
       if (!review) return;
@@ -625,8 +693,8 @@ const handleAddBookFromSearch = async (book) => {
     setEditedCommentText(comment.content);
   };
 
-  // Function to delete a review
-  const handleDeleteReview = async (reviewId) => {
+  // Function to handle deleting a review
+  const handleDeleteReview = (reviewId) => {
     try {
       if (!selectedBook || !currentUser) return;
 
@@ -639,21 +707,28 @@ const handleAddBookFromSearch = async (book) => {
         return;
       }
 
-      // Confirm deletion
-      if (!window.confirm("Are you sure you want to delete this review? This will also delete all comments.")) {
-        return;
-      }
+      // Show confirmation dialog
+      setReviewToDelete(reviewId);
+      setShowDeleteReviewConfirm(true);
 
+    } catch (err) {
+      console.error('Error preparing to delete review:', err);
+      setError(err.message);
+    }
+  };
+
+  const confirmDeleteReview = async () => {
+    try {
       // Delete review from the database
       const { error } = await supabase
         .from('reviews')
         .delete()
-        .eq('id', reviewId);
+        .eq('id', reviewToDelete);
 
       if (error) throw error;
 
       // Remove review from local state
-      const updatedReviews = selectedBook.reviews.filter(r => r.id !== reviewId);
+      const updatedReviews = selectedBook.reviews.filter(r => r.id !== reviewToDelete);
       
       // Recalculate average rating
       const totalRating = updatedReviews.reduce((sum, review) => sum + review.rating, 0);
@@ -666,7 +741,8 @@ const handleAddBookFromSearch = async (book) => {
               ...book, 
               reviews: updatedReviews,
               totalReviews: updatedReviews.length,
-              averageRating
+              averageRating,
+              currentUserReviewed: updatedReviews.some(r => r.user_id === currentUser.id)
             }
           : book
       );
@@ -676,8 +752,13 @@ const handleAddBookFromSearch = async (book) => {
         ...selectedBook,
         reviews: updatedReviews,
         totalReviews: updatedReviews.length,
-        averageRating
+        averageRating,
+        currentUserReviewed: updatedReviews.some(r => r.user_id === currentUser.id)
       });
+
+      // Close the confirmation dialog
+      setShowDeleteReviewConfirm(false);
+      setReviewToDelete(null);
 
     } catch (err) {
       console.error('Error deleting review:', err);
@@ -685,8 +766,8 @@ const handleAddBookFromSearch = async (book) => {
     }
   };
 
-  // Function to delete a comment
-  const handleDeleteComment = async (reviewId, commentId) => {
+  // Function to handle deleting a comment
+  const handleDeleteComment = (reviewId, commentId) => {
     try {
       if (!selectedBook || !currentUser) return;
 
@@ -703,16 +784,24 @@ const handleAddBookFromSearch = async (book) => {
         return;
       }
 
-      // Confirm deletion
-      if (!window.confirm("Are you sure you want to delete this comment?")) {
-        return;
-      }
+      // Show confirmation dialog
+      setCommentToDelete(commentId);
+      setCommentParentReviewId(reviewId);
+      setShowDeleteCommentConfirm(true);
 
+    } catch (err) {
+      console.error('Error preparing to delete comment:', err);
+      setError(err.message);
+    }
+  };
+
+  const confirmDeleteComment = async () => {
+    try {
       // Delete comment from the database
       const { error } = await supabase
         .from('review_comments')
         .delete()
-        .eq('id', commentId);
+        .eq('id', commentToDelete);
 
       if (error) throw error;
 
@@ -722,10 +811,10 @@ const handleAddBookFromSearch = async (book) => {
           return {
             ...book,
             reviews: book.reviews.map(rev => {
-              if (rev.id === reviewId) {
+              if (rev.id === commentParentReviewId) {
                 return {
                   ...rev,
-                  comments: rev.comments.filter(c => c.id !== commentId)
+                  comments: rev.comments.filter(c => c.id !== commentToDelete)
                 };
               }
               return rev;
@@ -737,6 +826,11 @@ const handleAddBookFromSearch = async (book) => {
 
       setBooks(updatedBooks);
       setSelectedBook(updatedBooks.find(b => b.id === selectedBook.id));
+
+      // Close the confirmation dialog
+      setShowDeleteCommentConfirm(false);
+      setCommentToDelete(null);
+      setCommentParentReviewId(null);
 
     } catch (err) {
       console.error('Error deleting comment:', err);
@@ -825,6 +919,23 @@ return (
     </section>
 
     <div className="ml-72 p-8 w-full">
+      {/* Main content error alerts */}
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription className="flex justify-between items-center">
+            <span>{error}</span>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setError(null)}
+              className="h-8 px-2"
+            >
+              <X size={16} />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <h1 className={`text-3xl font-bold text-black mb-8 ${header2Font.className}`}>
         {selectedBook ? (
           <div className="flex justify-between items-center">
@@ -835,9 +946,12 @@ return (
               <ChevronLeft size={24} />
               {selectedBook.title}
             </button>
-            <Button onClick={() => setShowCreateReviewDialog(true)}>
-              Add Review
-            </Button>
+            {/* Only show Add Review button if user hasn't already reviewed this book */}
+            {!selectedBook.currentUserReviewed && (
+              <Button onClick={() => setShowCreateReviewDialog(true)}>
+                Add Review
+              </Button>
+            )}
           </div>
         ) : "Book Reviews"}
       </h1>
@@ -890,7 +1004,11 @@ return (
                             onChange={(e) => setEditedReview({...editedReview, content: e.target.value})}
                             rows={5}
                             placeholder="Edit your review..."
+                            maxLength={MAX_REVIEW_LENGTH}
                           />
+                          <p className="text-sm text-gray-500 text-right mt-1">
+                            {editedReview.content.length}/{MAX_REVIEW_LENGTH} characters
+                          </p>
                         </div>
                         <div className="flex justify-end gap-2">
                           <Button 
@@ -907,7 +1025,7 @@ return (
                             disabled={!editedReview.content || !editedReview.rating}
                           >
                             <Save size={16} className="mr-1" />
-                            Save Changes
+                            Update Review
                           </Button>
                         </div>
                       </div>
@@ -970,9 +1088,13 @@ return (
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleAddComment(review.id)}
+                          maxLength={MAX_COMMENT_LENGTH}
                         />
                         <Button onClick={() => handleAddComment(review.id)}>Post</Button>
                       </div>
+                      <p className="text-sm text-gray-500 text-right">
+                        {newComment.length}/{MAX_COMMENT_LENGTH} characters
+                      </p>
                       
                       {review.comments.length > 0 ? (
                         review.comments.map(comment => (
@@ -985,7 +1107,11 @@ return (
                                   onChange={(e) => setEditedCommentText(e.target.value)}
                                   rows={3}
                                   placeholder="Edit your comment..."
+                                  maxLength={MAX_COMMENT_LENGTH}
                                 />
+                                <p className="text-sm text-gray-500 text-right">
+                                  {editedCommentText.length}/{MAX_COMMENT_LENGTH} characters
+                                </p>
                                 <div className="flex justify-end gap-2">
                                   <Button 
                                     variant="outline" 
@@ -1003,7 +1129,7 @@ return (
                                     disabled={!editedCommentText.trim()}
                                   >
                                     <Save size={16} className="mr-1" />
-                                    Save
+                                    Update Comment
                                   </Button>
                                 </div>
                               </div>
@@ -1123,15 +1249,20 @@ return (
           setShowCreateBookDialog(false);
           setSearchQuery('');
           setSearchResults([]);
+          setBookDialogError(''); // Clear any errors when closing
         }} className="text-gray-500 hover:text-gray-700">
           <X size={24} />
         </button>
       </div>
       
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
-          {error}
-        </div>
+      {/* Error message displayed within the dialog */}
+      {bookDialogError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription className="flex items-center gap-2">
+            <AlertCircle size={16} />
+            <span>{bookDialogError}</span>
+          </AlertDescription>
+        </Alert>
       )}
       
       <div className="space-y-4">
@@ -1195,10 +1326,24 @@ return (
           <div className="bg-white p-6 rounded-lg w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">Add Review for {selectedBook.title}</h2>
-              <button onClick={() => setShowCreateReviewDialog(false)} className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => {
+                setShowCreateReviewDialog(false);
+                setReviewDialogError(''); // Clear any errors when closing
+              }} className="text-gray-500 hover:text-gray-700">
                 <X size={24} />
               </button>
             </div>
+            
+            {/* Error message displayed within the dialog */}
+            {reviewDialogError && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription className="flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  <span>{reviewDialogError}</span>
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Your Rating</label>
@@ -1221,10 +1366,17 @@ return (
                   onChange={(e) => setNewReview({...newReview, content: e.target.value})}
                   rows={5}
                   placeholder="Share your thoughts about this book..."
+                  maxLength={MAX_REVIEW_LENGTH}
                 />
+                <p className="text-sm text-gray-500 text-right mt-1">
+                  {newReview.content.length}/{MAX_REVIEW_LENGTH} characters
+                </p>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowCreateReviewDialog(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => {
+                  setShowCreateReviewDialog(false);
+                  setReviewDialogError('');
+                }}>Cancel</Button>
                 <Button 
                   onClick={handleCreateReview} 
                   disabled={!newReview.content || !newReview.rating}
@@ -1232,6 +1384,61 @@ return (
                   Post Review
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Review Confirmation Dialog */}
+      {showDeleteReviewConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Delete Review</h2>
+            <p className="mb-6">Are you sure you want to delete this review? This will also delete all comments.</p>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowDeleteReviewConfirm(false);
+                  setReviewToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={confirmDeleteReview}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Comment Confirmation Dialog */}
+      {showDeleteCommentConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Delete Comment</h2>
+            <p className="mb-6">Are you sure you want to delete this comment?</p>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowDeleteCommentConfirm(false);
+                  setCommentToDelete(null);
+                  setCommentParentReviewId(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={confirmDeleteComment}
+              >
+                Delete
+              </Button>
             </div>
           </div>
         </div>
