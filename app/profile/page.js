@@ -163,6 +163,7 @@ const ProfilePage = () => {
     <div className="min-h-screen bg-white flex">
       {/* Sidebar */}
       <section>
+        <h1>Test</h1>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6">
             <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
