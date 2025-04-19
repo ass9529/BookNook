@@ -39,7 +39,7 @@ const CalendarPage = () => {
     endMinute: '00',
     endAmPm: 'PM'
   });
-  
+
 
   const timeOptions = [];
   for (let hour = 0; hour < 24; hour++) {
@@ -57,6 +57,7 @@ const CalendarPage = () => {
   const [url, setUrl] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
   const [clubData, setClubData] = useState(null);
+  const [isHost, setIsHost] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -84,9 +85,10 @@ const CalendarPage = () => {
           console.error('Error fetching club data:', clubError);
           return;
         }
-
+        debugger
         setClubData(clubData);
         setUrl(clubData.url || '');
+        setIsHost(authData.user.id === clubData.owner_id);
 
         // Fetch events specific to this club
         const { data: eventData, error: eventError } = await supabase
@@ -121,7 +123,7 @@ const CalendarPage = () => {
 
     const { data, error } = await supabase
       .from('clubs')
-      .update({url : url})
+      .update({ url: url })
       .eq('id', clubId)
       .select()
       .single();
@@ -147,32 +149,32 @@ const CalendarPage = () => {
 
   const handleAddEvent = async () => {
     if (!newEvent.title || !newEvent.startDate || !newEvent.endDate) return;
-  
+
     // Convert 12-hour time to 24-hour format
-    const startHours24 = newEvent.startAmPm === 'PM' 
+    const startHours24 = newEvent.startAmPm === 'PM'
       ? parseInt(newEvent.startHour) % 12 + 12
       : parseInt(newEvent.startHour) % 12;
-    const endHours24 = newEvent.endAmPm === 'PM' 
+    const endHours24 = newEvent.endAmPm === 'PM'
       ? parseInt(newEvent.endHour) % 12 + 12
       : parseInt(newEvent.endHour) % 12;
-  
+
     // Create Date objects with the selected dates and times
     const startDateTime = new Date(newEvent.startDate);
     startDateTime.setHours(startHours24, parseInt(newEvent.startMinute));
-    
+
     const endDateTime = new Date(newEvent.endDate);
     endDateTime.setHours(endHours24, parseInt(newEvent.endMinute));
 
     const { data, error } = await supabase
-    .from('event')
-    .insert([{
-      title: newEvent.title,
-      start_date: startDateTime,
-      end_date: endDateTime,
-      user_id: user.id,
-      club_id: clubId
-    }])
-    .select();
+      .from('event')
+      .insert([{
+        title: newEvent.title,
+        start_date: startDateTime,
+        end_date: endDateTime,
+        user_id: user.id,
+        club_id: clubId
+      }])
+      .select();
 
     if (error) {
       console.error('Error adding event:', error);
@@ -241,18 +243,18 @@ const CalendarPage = () => {
             <X size={24} />
           </button>
         </div>
-  
+
         <div className="space-y-4">
           {/* Event Title */}
           <div>
             <label className="block text-sm font-medium mb-1">Event Title</label>
             <Input
-               value={newEvent.title || ""}
-               onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
-               autoFocus
+              value={newEvent.title || ""}
+              onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+              autoFocus
             />
           </div>
-  
+
           {/* Start Date & Time */}
           <div className="grid grid-cols-2 gap-4">
             {/* Start Date Picker */}
@@ -277,7 +279,7 @@ const CalendarPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
-  
+
             {/* Start Time */}
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -298,7 +300,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">Minute</label>
                 <Select
@@ -317,7 +319,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">AM/PM</label>
                 <Select
@@ -338,7 +340,7 @@ const CalendarPage = () => {
               </div>
             </div>
           </div>
-  
+
           {/* End Date & Time */}
           <div className="grid grid-cols-2 gap-4">
             {/* End Date Picker */}
@@ -363,7 +365,7 @@ const CalendarPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
-  
+
             {/* End Time */}
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -384,7 +386,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">Minute</label>
                 <Select
@@ -403,7 +405,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">AM/PM</label>
                 <Select
@@ -424,7 +426,7 @@ const CalendarPage = () => {
               </div>
             </div>
           </div>
-  
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="ghost" onClick={() => setShowCreateEventDialog(false)}>
@@ -438,7 +440,7 @@ const CalendarPage = () => {
       </div>
     </div>
   );
-  
+
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -542,16 +544,16 @@ const CalendarPage = () => {
           </CardContent>
         </Card>
 
-        <button
-          onClick={() => setShowCreateEventDialog(true)}
-          className="fixed bottom-8 right-8 w-16 h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
-          <Plus size={32} />
-        </button>
-
-         {showCreateEventDialog && <EventCreationDialog />}
-
-       
-
+        {
+          isHost && (
+            <button
+              onClick={() => setShowCreateEventDialog(true)}
+              className="fixed bottom-8 right-8 w-16 h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
+              <Plus size={32} />
+            </button>
+          )
+        }
+        {showCreateEventDialog && <EventCreationDialog />}
         {showEventDetailsDialog && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[101]">
             <div className="bg-white p-6 rounded-lg w-full max-w-md">

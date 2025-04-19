@@ -39,7 +39,6 @@ const ProfilePage = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false)
 
-  //TODO: Should default to data from SupaBase
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
   const [email, setEmail] = useState('')
@@ -50,7 +49,7 @@ const ProfilePage = () => {
   const [selectedFile, setSelectedFile] = useState(null)
 
 
-  // Think of it as code that runs before you see your component that fetches all data you'll need from Supabase
+  // Check if user is logged in and fetch user data
   useEffect(() => {
     async function fetchData() {
       const {
@@ -170,9 +169,10 @@ const ProfilePage = () => {
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
             </button>
-            <p className="w-fit text-2xl font-bold text-gray-500 mb-6">
-                  Please return to home page to get back to your clubs!
-                </p>
+            <button onClick={() => router.back()} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Return</span>
+            </button>
           </div>
         </ul>
       </section>
