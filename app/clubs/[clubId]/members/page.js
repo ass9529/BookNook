@@ -23,6 +23,7 @@ const BookClubsPage = () => {
   const [selectedNewHost, setSelectedNewHost] = useState('');
   const [activeMemberMenu, setActiveMemberMenu] = useState(null);
   const { clubId } = useParams();
+  const [clubData, setClubData] = useState(null);
 
   useEffect(() => {
     async function checkLogin() {
@@ -66,6 +67,19 @@ const BookClubsPage = () => {
     const fetchMembers = async () => {
       setLoading(true);
 
+      const { data: clubData, error: clubError } = await supabase
+          .from('clubs')
+          .select('*')
+          .eq('id', clubId)
+          .single();
+
+        if (clubError) {
+          console.error('Error fetching club data:', clubError);
+          return;
+        }
+
+        setClubData(clubData);
+
       const { data, error } = await supabase
         .from('club_members')
         .select(`
@@ -89,6 +103,15 @@ const BookClubsPage = () => {
 
     if (clubId) fetchMembers();
   }, [clubId]);
+
+  const getClubName = () => {
+    return (
+      <>
+        <span className="text-gray-700 not-italic">Club</span>{' '}
+        <span className="italic" style={{ color: '#F5F5F4' }}>{clubData.name}</span>
+      </>
+    );
+  };
 
   const handleKickMember = async (userId) => {
     if (!(isHost || isAdmin) || userId === clubHostId) {
@@ -197,11 +220,13 @@ const BookClubsPage = () => {
       {/* Sidebar */}
       <section>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
+        <div className="flex justify-center items-center mb-4">
+            <h1 className={`text-2xl font-bold text-black ${header2Font.className}`}>
+              {clubData ? getClubName() : ''}
+            </h1>
+          </div>
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6"> 
-            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
-            </button>
+            
             <button onClick={() => router.push(`/clubs/${clubId}/reviews`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
@@ -220,7 +245,11 @@ const BookClubsPage = () => {
             </button>
             <button onClick={() => router.push('/settings')} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
+              <span className={`relative z-10 text-xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
+            </button>
+            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 w-full bg-transparent text-gray-600 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
             </button>
           </div> 
         </ul>

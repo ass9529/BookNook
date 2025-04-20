@@ -39,7 +39,7 @@ const CalendarPage = () => {
     endMinute: '00',
     endAmPm: 'PM'
   });
-  
+
 
   const timeOptions = [];
   for (let hour = 0; hour < 24; hour++) {
@@ -57,6 +57,7 @@ const CalendarPage = () => {
   const [url, setUrl] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
   const [clubData, setClubData] = useState(null);
+  const [isHost, setIsHost] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -86,7 +87,9 @@ const CalendarPage = () => {
         }
 
         setClubData(clubData);
+
         setUrl(clubData.url || '');
+        setIsHost(authData.user.id === clubData.owner_id);
 
         // Fetch events specific to this club
         const { data: eventData, error: eventError } = await supabase
@@ -115,13 +118,22 @@ const CalendarPage = () => {
     }));
   };
 
+  const getClubName = () => {
+    return (
+      <>
+        <span className="text-gray-700 not-italic">Club</span>{' '}
+        <span className="italic" style={{ color: '#F5F5F4' }}>{clubData.name}</span>
+      </>
+    );
+  };
+
   const handleSaveUrl = async () => {
     if (!clubData) return;
     const oldUrl = clubData.url;
 
     const { data, error } = await supabase
       .from('clubs')
-      .update({url : url})
+      .update({ url: url })
       .eq('id', clubId)
       .select()
       .single();
@@ -147,32 +159,32 @@ const CalendarPage = () => {
 
   const handleAddEvent = async () => {
     if (!newEvent.title || !newEvent.startDate || !newEvent.endDate) return;
-  
+
     // Convert 12-hour time to 24-hour format
-    const startHours24 = newEvent.startAmPm === 'PM' 
+    const startHours24 = newEvent.startAmPm === 'PM'
       ? parseInt(newEvent.startHour) % 12 + 12
       : parseInt(newEvent.startHour) % 12;
-    const endHours24 = newEvent.endAmPm === 'PM' 
+    const endHours24 = newEvent.endAmPm === 'PM'
       ? parseInt(newEvent.endHour) % 12 + 12
       : parseInt(newEvent.endHour) % 12;
-  
+
     // Create Date objects with the selected dates and times
     const startDateTime = new Date(newEvent.startDate);
     startDateTime.setHours(startHours24, parseInt(newEvent.startMinute));
-    
+
     const endDateTime = new Date(newEvent.endDate);
     endDateTime.setHours(endHours24, parseInt(newEvent.endMinute));
 
     const { data, error } = await supabase
-    .from('event')
-    .insert([{
-      title: newEvent.title,
-      start_date: startDateTime,
-      end_date: endDateTime,
-      user_id: user.id,
-      club_id: clubId
-    }])
-    .select();
+      .from('event')
+      .insert([{
+        title: newEvent.title,
+        start_date: startDateTime,
+        end_date: endDateTime,
+        user_id: user.id,
+        club_id: clubId
+      }])
+      .select();
 
     if (error) {
       console.error('Error adding event:', error);
@@ -241,18 +253,18 @@ const CalendarPage = () => {
             <X size={24} />
           </button>
         </div>
-  
+
         <div className="space-y-4">
           {/* Event Title */}
           <div>
             <label className="block text-sm font-medium mb-1">Event Title</label>
             <Input
-               value={newEvent.title || ""}
-               onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
-               autoFocus
+              value={newEvent.title || ""}
+              onChange={(e) => setNewEvent(prev => ({ ...prev, title: e.target.value }))}
+              autoFocus
             />
           </div>
-  
+
           {/* Start Date & Time */}
           <div className="grid grid-cols-2 gap-4">
             {/* Start Date Picker */}
@@ -277,7 +289,7 @@ const CalendarPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
-  
+
             {/* Start Time */}
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -298,7 +310,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">Minute</label>
                 <Select
@@ -317,7 +329,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">AM/PM</label>
                 <Select
@@ -338,7 +350,7 @@ const CalendarPage = () => {
               </div>
             </div>
           </div>
-  
+
           {/* End Date & Time */}
           <div className="grid grid-cols-2 gap-4">
             {/* End Date Picker */}
@@ -363,7 +375,7 @@ const CalendarPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
-  
+
             {/* End Time */}
             <div className="grid grid-cols-3 gap-2">
               <div>
@@ -384,7 +396,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">Minute</label>
                 <Select
@@ -403,7 +415,7 @@ const CalendarPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-  
+
               <div>
                 <label className="block text-xs font-medium mb-1">AM/PM</label>
                 <Select
@@ -424,7 +436,7 @@ const CalendarPage = () => {
               </div>
             </div>
           </div>
-  
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-2 pt-4">
             <Button variant="ghost" onClick={() => setShowCreateEventDialog(false)}>
@@ -438,18 +450,19 @@ const CalendarPage = () => {
       </div>
     </div>
   );
-  
+
 
   return (
     <div className="min-h-screen bg-white flex">
       {/* Sidebar */}
       <section>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
+          <div className="flex justify-center items-center mb-4">
+            <h1 className={`text-2xl font-bold text-black ${header2Font.className}`}>
+              {clubData ? getClubName() : ''}
+            </h1>
+          </div>
           <div className="flex justify-center items-center flex-wrap space-y-8 p-6">
-            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
-              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
-            </button>
             <button onClick={() => router.push(`/clubs/${clubId}/reviews`)} className={`relative group w-full px-4 py-2 rounded-lg bg-black text-white font-medium overflow-hidden ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Book Reviews</span>
@@ -468,7 +481,11 @@ const CalendarPage = () => {
             </button>
             <button onClick={() => router.push(`/clubs/${clubId}/settings`)} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
+              <span className={`relative z-10 text-xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
+            </button>
+            <button onClick={() => router.push('/landing')} className={`relative group px-6 py-2 w-full bg-transparent text-gray-600 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+              <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
+              <span className={`relative z-10 text-xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
             </button>
           </div>
         </ul>
@@ -542,16 +559,16 @@ const CalendarPage = () => {
           </CardContent>
         </Card>
 
-        <button
-          onClick={() => setShowCreateEventDialog(true)}
-          className="fixed bottom-8 right-8 w-16 h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
-          <Plus size={32} />
-        </button>
-
-         {showCreateEventDialog && <EventCreationDialog />}
-
-       
-
+        {
+          isHost && (
+            <button
+              onClick={() => setShowCreateEventDialog(true)}
+              className="fixed bottom-8 right-8 w-16 h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
+              <Plus size={32} />
+            </button>
+          )
+        }
+        {showCreateEventDialog && <EventCreationDialog />}
         {showEventDetailsDialog && selectedEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[101]">
             <div className="bg-white p-6 rounded-lg w-full max-w-md">
