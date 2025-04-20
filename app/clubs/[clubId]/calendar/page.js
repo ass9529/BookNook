@@ -87,6 +87,7 @@ const CalendarPage = () => {
         }
 
         setClubData(clubData);
+
         setUrl(clubData.url || '');
         setIsHost(authData.user.id === clubData.owner_id);
 
@@ -118,15 +119,12 @@ const CalendarPage = () => {
   };
 
   const getClubName = () => {
-    if (!clubData.name.toLowerCase().includes('club')) {
-      return (
-        <>
-          <span className="text-black not-italic">Club</span>{' '}
-          <span className="text-white italic">{clubData.name}</span>
-        </>
-      );
-    }
-    return <span className="text-white italic">{clubData.name}</span>;
+    return (
+      <>
+        <span className="text-gray-700 not-italic">Club</span>{' '}
+        <span className="italic" style={{ color: '#F5F5F4' }}>{clubData.name}</span>
+      </>
+    );
   };
 
   const handleSaveUrl = async () => {
@@ -483,11 +481,11 @@ const CalendarPage = () => {
             </button>
             <button onClick={() => router.push(`/clubs/${clubId}/settings`)} className={`relative group w-full px-4 py-2 text-white font-medium overflow-hidden top-28 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-base tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
+              <span className={`relative z-10 text-xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Settings</span>
             </button>
-            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+            <button onClick={() => router.push('/landing')} className={`relative group px-6 py-2 w-full bg-transparent text-gray-600 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
-              <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
+              <span className={`relative z-10 text-xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
             </button>
           </div>
         </ul>

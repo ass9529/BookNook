@@ -84,10 +84,10 @@ const ProfilePage = () => {
         // Load in data from database
         setIsLoggedIn(true);
         setUserProfile(userData)
-        setUsername(userData.username)
-        setBio(userData.bio)
-        setEmail(userData.email)
-        setImageUrl(userData.photo_url)
+        setUsername(userData.username || '')
+        setBio(userData.bio || '')
+        setEmail(userData.email || authData.user.email || '')
+        setImageUrl(userData.photo_url || '')
       }
     }
 
@@ -163,14 +163,13 @@ const ProfilePage = () => {
     <div className="min-h-screen bg-white flex">
       {/* Sidebar */}
       <section>
-        <h1>Test</h1>
         <ul className="h-full w-64 bg-red-200 text-white rounded-3xl p-4 fixed left-5 top-48">
-          <div className="flex justify-center items-center flex-wrap space-y-8 p-6">
-            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+          <div className="flex justify-center items-center flex-wrap space-y-6 p-6">
+            <button onClick={() => router.push('/landing')} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-600 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Home</span>
             </button>
-            <button onClick={() => router.back()} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-500 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
+            <button onClick={() => router.back()} className={`relative group px-2 py-2 rounded-lg bg-transparent text-gray-600 font-medium overflow-hidden bottom-5 ${header2Font.className}`}>
               <span className="absolute inset-0 bg-red-200 transition-transform translate-x-full group-hover:translate-x-0 group-hover:rounded-lg group-hover:border-4 group-hover:border-black"></span>
               <span className={`relative z-10 text-2xl tracking-wide transition-colors duration-300 group-hover:text-black ${header2Font.className}`}>Return</span>
             </button>
