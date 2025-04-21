@@ -1,24 +1,29 @@
-import supabase from '../supabaseClient';
+// utils/notifications.js
+import supabase from '../supabaseClient'
 
 export const createNotification = async (clubId, userId, title, description, type) => {
   const { data, error } = await supabase
     .from('notifications')
     .insert([{
-      user_id: userId,
+      user_id:   userId,
+      club_id:   clubId,
       title,
-      club_id: clubId,
       description,
-      type
+      type,
+      is_read:   false
     }])
-    .select();
+    .select()
 
   if (error) {
-    console.error('Error creating notification:', error);
-    return null;
+    // re‑throw so your caller’s catch block can pick it up
+    throw new Error(error.message || 'unknown supabase error')
   }
 
-  return data[0];
-};
+  return data[0]
+}
+
+
+
 
 export const notifyAllClubMembers = async (clubId, title, description, type) => {
   // Get all members of the club

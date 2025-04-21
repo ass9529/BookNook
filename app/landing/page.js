@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, BookOpen, PlusCircle, LockKeyhole, Star, Check } from 'lucide-react';
@@ -26,126 +27,146 @@ export default function BookClubsPage() {
   const [user, setUser] = useState(null);
   const [latestDiscussions, setLatestDiscussions] = useState({});
   const [showReadNotifications, setShowReadNotifications] = useState(false);
+  const [clubDeletedMessage, setClubDeletedMessage] = useState('');
+  const [showLeftModal, setShowLeftModal] = useState(false);
+const [leftMessage, setLeftMessage] = useState('');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push('/login');
-          return;
-        }
-        setUser(user);
-        
-        await supabase.from('profiles').upsert({
-          id: user.id,
-          email: user.email,
-          username: user.user_metadata?.username || user.email
-        });
+useEffect(() => {
+  const deletedMsg = localStorage.getItem('clubDeletedMessage');
+  if (deletedMsg) {
+    setClubDeletedMessage(deletedMsg);
+    localStorage.removeItem('clubDeletedMessage');
+  }
+}, []);
 
-        // Fetch notifications for the user
-        const fetchNotifications = async () => {
-          const { data, error } = await supabase
-            .from('notifications')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(5);
+useEffect(() => {
+  const message = localStorage.getItem('clubLeftMessage');
+  if (message) {
+    setLeftMessage(message);
+    setShowLeftModal(true);
+    localStorage.removeItem('clubLeftMessage');
+  }
+}, []);
 
-          if (error) throw error;
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      setLoading(true);
 
-          setNotifications(data || []);
-          setUnreadCount(data.filter(n => !n.is_read).length);
-        };
-
-        // Set up real-time notifications
-        const setupRealtime = () => {
-          return supabase
-            .channel('notifications')
-            .on(
-              'postgres_changes',
-              {
-                event: '*',
-                schema: 'public',
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`
-              },
-              (payload) => {
-                if (payload.eventType === 'INSERT') {
-                  setNotifications(prev => [payload.new, ...prev]);
-                  setUnreadCount(prev => prev + 1);
-                }
-              }
-            )
-            .subscribe();
-        };
-
-        const [clubsRes] = await Promise.all([
-          supabase
-            .from('club_members')
-            .select('club:clubs(*)')
-            .eq('user_id', user.id),
-          fetchNotifications()
-        ]);
-
-        const subscription = setupRealtime();
-
-        // Get all club IDs
-        const clubIds = clubsRes.data?.map(m => m.club.id) || [];
-
-        // Fetch all club members for these clubs
-        const { data: allMembers, error: membersError } = await supabase
-          .from('club_members')
-          .select('club_id')
-          .in('club_id', clubIds);
-
-        if (membersError) throw membersError;
-
-        // Count members per club
-        const memberCounts = allMembers.reduce((acc, { club_id }) => {
-          acc[club_id] = (acc[club_id] || 0) + 1;
-          return acc;
-        }, {});
-
-        // Add member_count to each club
-        const userClubs = clubsRes.data?.map(m => ({
-          ...m.club,
-          member_count: memberCounts[m.club.id] || 0
-        })) || [];
-
-        setClubs(userClubs);
-
-        // Fetch latest discussions
-        const { data: discussionsData } = await supabase
-          .from('discussions')
-          .select('*')
-          .in('club_id', clubIds)
-          .order('created_at', { ascending: false });
-
-        const latest = discussionsData?.reduce((acc, discussion) => {
-          if (!acc[discussion.club_id]) {
-            acc[discussion.club_id] = discussion;
-          }
-          return acc;
-        }, {});
-
-        setLatestDiscussions(latest || {});
-
-        return () => {
-          supabase.removeChannel(subscription);
-        };
-
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/login');
+        return;
       }
-    };
+      setUser(user);
 
-    fetchData();
-  }, [router]);
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        email: user.email,
+        username: user.user_metadata?.username || user.email
+      });
+
+      const fetchNotifications = async () => {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (error) throw error;
+
+        setNotifications(data || []);
+        setUnreadCount(data.filter(n => !n.is_read).length);
+      };
+
+      const setupRealtime = () => {
+        return supabase
+          .channel('notifications')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'notifications',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              if (payload.eventType === 'INSERT') {
+                setNotifications(prev => [payload.new, ...prev]);
+                setUnreadCount(prev => prev + 1);
+              }
+            }
+          )
+          .subscribe();
+      };
+
+      const [clubsRes] = await Promise.all([
+        supabase
+          .from('club_members')
+          .select('club:clubs(*)')
+          .eq('user_id', user.id),
+        fetchNotifications()
+      ]);
+
+      const subscription = setupRealtime();
+
+      const clubIds = clubsRes.data?.map(m => m.club.id) || [];
+
+      const { data: allMembers, error: membersError } = await supabase
+        .from('club_members')
+        .select('club_id')
+        .in('club_id', clubIds);
+
+      if (membersError) throw membersError;
+
+      const memberCounts = allMembers.reduce((acc, { club_id }) => {
+        acc[club_id] = (acc[club_id] || 0) + 1;
+        return acc;
+      }, {});
+
+      // ✅ Remove duplicate clubs by ID
+      const uniqueClubsMap = new Map();
+      (clubsRes.data || []).forEach(m => {
+        if (!uniqueClubsMap.has(m.club.id)) {
+          uniqueClubsMap.set(m.club.id, {
+            ...m.club,
+            member_count: memberCounts[m.club.id] || 0
+          });
+        }
+      });
+      const userClubs = Array.from(uniqueClubsMap.values());
+      setClubs(userClubs);
+
+      // ✅ Latest discussions
+      const { data: discussionsData } = await supabase
+        .from('discussions')
+        .select('*')
+        .in('club_id', clubIds)
+        .order('created_at', { ascending: false });
+
+      const latest = discussionsData?.reduce((acc, discussion) => {
+        if (!acc[discussion.club_id]) {
+          acc[discussion.club_id] = discussion;
+        }
+        return acc;
+      }, {});
+      setLatestDiscussions(latest || {});
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchData();
+}, [router]);
+
+
 
   const markAsRead = async (id) => {
     const { error } = await supabase
@@ -163,6 +184,7 @@ export default function BookClubsPage() {
     );
     setUnreadCount(prev => prev - 1);
   };
+
 
   const markAllAsRead = async () => {
     const unreadIds = notifications
@@ -318,6 +340,7 @@ export default function BookClubsPage() {
 
   return (
     <div className="container mx-auto p-4">
+      
       <h1 className="text-3xl font-bold mb-8">Welcome! Check out what's new!</h1>
       
       <section className="mb-12">
@@ -357,9 +380,13 @@ export default function BookClubsPage() {
               .filter(n => showReadNotifications || !n.is_read)
               .map(n => (
                 <Alert 
-                  key={n.id} 
-                  className={`mb-2 ${!n.is_read ? 'bg-blue-50' : ''}`}
-                >
+  key={n.id} 
+  className={`mb-2 ${
+    n.type === 'danger' ? 'bg-red-100 border-red-300 text-red-800' :
+    !n.is_read ? 'bg-blue-50' : ''
+  }`}
+>
+
                   <div className="flex justify-between items-start">
                     <div>
                       <AlertTitle>{n.title}</AlertTitle>
@@ -621,6 +648,37 @@ export default function BookClubsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {clubDeletedMessage && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+    <div className="bg-white rounded-lg shadow-lg p-6 w-[90%] max-w-md text-center">
+      <h2 className="text-lg font-semibold text-green-700 mb-2">
+        🎉 <strong>{clubDeletedMessage}</strong> has been successfully deleted!
+      </h2>
+      <button
+        onClick={() => setClubDeletedMessage('')}
+        className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
+
+{showLeftModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
+    <div className="bg-white p-6 rounded-lg shadow-lg text-center max-w-sm w-full border border-green-500">
+      <h2 className="text-xl font-semibold text-green-700 mb-2">🎉 {leftMessage}</h2>
+      <button
+        className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+        onClick={() => setShowLeftModal(false)}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
+
+
     </div>
   );
 }

@@ -130,12 +130,22 @@ const Notifications = ({ clubId }) => {
             ) : (
               notifications.map(notification => (
                 <div
-                  key={notification.id}
-                  className={`p-3 border-b ${!notification.is_read ? 'bg-blue-50' : ''}`}
-                >
+                key={notification.id}
+                className={`p-3 border-b ${
+                  notification.description?.toLowerCase().includes('kicked')
+                    ? 'bg-red-50'
+                    : !notification.is_read
+                      ? 'bg-blue-50'
+                      : ''
+                }`}
+              >
+              
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-medium">{notification.description}</p>
+                    <p className={`font-medium ${notification.description?.toLowerCase().includes('kicked') ? 'text-red-600' : ''}`}>
+  {notification.description}
+</p>
+
                       <p className="text-xs text-gray-500 mt-1">
                         {moment(notification.created_at).fromNow()}
                       </p>

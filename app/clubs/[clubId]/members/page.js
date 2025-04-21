@@ -6,6 +6,8 @@ import { BookOpen, Trash2, Crown, MoreVertical, Shield, ShieldOff } from 'lucide
 import supabase from '../../../supabaseClient'; 
 import { Baloo_2, Pacifico } from 'next/font/google';
 
+
+
 const headerFont = Baloo_2({ weight: ['400', '800'], subsets: ['latin'] });
 const header2Font = Baloo_2({ weight: ['800'], subsets: ['latin'] });
 const footerFont = Pacifico({ weight: '400', subsets: ['latin'] });
@@ -113,26 +115,33 @@ const BookClubsPage = () => {
     );
   };
 
-  const handleKickMember = async (userId) => {
-    if (!(isHost || isAdmin) || userId === clubHostId) {
-      alert('You cannot remove the host');
-      return;
-    }
-    
-    if (window.confirm('Are you sure you want to remove this member?')) {
-      const { error } = await supabase
-        .from('club_members')
-        .delete()
-        .eq('club_id', clubId)
-        .eq('user_id', userId);
+  
+ const handleKickMember = async (userIdToKick) => {
+   if (!(isHost || isAdmin) || userIdToKick === clubHostId) {
+    alert('You cannot remove the host');
+     return;
+   }    if (!window.confirm('Are you sure you want to remove this member?')) return;
 
-      if (!error) {
-        setMembers(members.filter(member => member.user_id !== userId));
-      } else {
-        console.error('Failed to remove member:', error.message);
-      }
-    }
-  };
+   // 1) Remove membership
+   const { error: delError } = await supabase
+      .from('club_members')
+      .delete()
+     .eq('club_id', clubId)
+      .eq('user_id', userIdToKick);
+
+   if (delError) {
+      console.error('Error removing member:', delError.message);
+     alert('Failed to remove member');
+     return;
+   }
+
+   
+
+   // 3) Update local UI
+    setMembers(members.filter(member => member.user_id !== userIdToKick));
+ };
+
+
 
   const handlePromoteDemote = async (userId, currentRole) => {
     if (!isHost) return;
