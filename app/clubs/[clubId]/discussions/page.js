@@ -276,6 +276,15 @@ const DiscussionsPage = () => {
         );
 
         setDiscussions(updatedDiscussions);
+
+        // Update the selectedDiscussion state with the edited content
+        const updatedSelectedDiscussion = {
+          ...selectedDiscussion,
+          title: editedDiscussion.title,
+          content: editedDiscussion.content
+        };
+        
+        setSelectedDiscussion(updatedSelectedDiscussion);
         setEditingDiscussion(false);
 
       }catch (err) {
